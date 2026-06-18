@@ -1,0 +1,143 @@
+import { DORA_CRITERIA } from "@/lib/dora/criteria";
+import type {
+  TriageInput,
+  TriageResult,
+  SeverityInput,
+  SeverityResult,
+  CriterionFinding,
+} from "@/lib/schemas";
+import type { SeverityService, TriageService } from "./types";
+
+/**
+ * Platzhalter-Implementierungen mit deterministischer, regelbasierter Heuristik.
+ *
+ * Zweck: Die gesamte UI ist bereits ohne KI testbar. Die Heuristik ist bewusst
+ * einfach und KEIN Ersatz für die spätere KI-/Fachbewertung.
+ */
+
+const SERVICE_DESK_HINTS = [
+  "passwort",
+  "kennwort",
+  "drucker",
+  "login",
+  "anmeldung",
+  "zugang vergessen",
+  "software installation",
+  "maus",
+  "tastatur",
+  "monitor",
+];
+
+const INCIDENT_HINTS = [
+  "ausfall",
+  "angriff",
+  "ransomware",
+  "phishing",
+  "datenleck",
+  "datenverlust",
+  "unbefugt",
+  "verschlüsselt",
+  "kompromitt",
+  "störung",
+  "nicht erreichbar",
+];
+
+function includesAny(haystack: string, needles: string[]): boolean {
+  const lower = haystack.toLowerCase();
+  return needles.some((n) => lower.includes(n));
+}
+
+export class MockTriageService implements TriageService {
+  async classify(input: TriageInput): Promise<TriageResult> {
+    const text = `${input.description} ${input.symptoms} ${input.affectedSystem}`;
+    const looksLikeServiceDesk = includesAny(text, SERVICE_DESK_HINTS);
+    const looksLikeIncident = includesAny(text, INCIDENT_HINTS);
+
+    if (looksLikeServiceDesk && !looksLikeIncident) {
+      return {
+        isIncident: false,
+        recommendation: "Kein IKT-Vorfall – ServiceDesk ist verantwortlich.",
+        reasoning:
+          "Die Beschreibung deutet auf ein Standard-Supportanliegen hin (z. B. Zugang/Hardware). [Mock-Heuristik]",
+        confidence: 0.6,
+      };
+    }
+
+    if (looksLikeIncident) {
+      return {
+        isIncident: true,
+        recommendation:
+          "Möglicher IKT-Vorfall – an das Incident-Response-Team weiterleiten und Schweregrad bestimmen.",
+        reasoning:
+          "Die Beschreibung enthält Hinweise auf eine Störung oder einen sicherheitsrelevanten Vorfall. [Mock-Heuristik]",
+        confidence: 0.65,
+      };
+    }
+
+    return {
+      isIncident: false,
+      recommendation: "Unklar – bitte zusätzliche Informationen einholen.",
+      reasoning:
+        "Aus der Beschreibung lässt sich keine eindeutige Einordnung ableiten. [Mock-Heuristik]",
+      confidence: 0.4,
+    };
+  }
+}
+
+export class MockSeverityService implements SeverityService {
+  async assess(input: SeverityInput): Promise<SeverityResult> {
+    const findings: CriterionFinding[] = DORA_CRITERIA.map((criterion) => {
+      let thresholdMet = false;
+      let assessment = "Keine ausreichenden Angaben zur Bewertung. [Mock]";
+
+      switch (criterion.id) {
+        case "clients_transactions":
+          thresholdMet = Boolean(input.clientsAffected || input.transactionsAffected);
+          assessment = thresholdMet
+            ? `Betroffene Kunden/Transaktionen angegeben: ${input.clientsAffected} ${input.transactionsAffected}`.trim()
+            : "Keine betroffenen Kunden/Transaktionen angegeben.";
+          break;
+        case "duration_downtime":
+          thresholdMet = (input.durationHours ?? 0) > 24 || (input.downtimeHours ?? 0) > 2;
+          assessment = `Dauer: ${input.durationHours ?? 0} h, Ausfallzeit: ${input.downtimeHours ?? 0} h`;
+          break;
+        case "geographical_spread":
+          thresholdMet = (input.memberStatesAffected ?? 0) >= 2;
+          assessment = `Betroffene Mitgliedstaaten: ${input.memberStatesAffected ?? 0}`;
+          break;
+        case "data_losses":
+          thresholdMet = Boolean(input.dataLosses);
+          assessment = input.dataLosses || "Keine Datenverluste angegeben.";
+          break;
+        case "critical_services":
+          thresholdMet = Boolean(input.criticalServicesAffected);
+          assessment = input.criticalServicesAffected
+            ? "Kritische/wichtige Funktion betroffen."
+            : "Keine kritische Funktion als betroffen markiert.";
+          break;
+        case "economic_impact":
+          thresholdMet = (input.economicImpactEur ?? 0) > 100000;
+          assessment = `Geschätzte Kosten/Verluste: ${input.economicImpactEur ?? 0} EUR`;
+          break;
+        case "reputational_impact":
+          thresholdMet = Boolean(input.reputationalImpact);
+          assessment = input.reputationalImpact || "Keine Reputationsauswirkung angegeben.";
+          break;
+      }
+
+      return { criterionId: criterion.id, thresholdMet, assessment };
+    });
+
+    const metCount = findings.filter((f) => f.thresholdMet).length;
+    const classification = metCount >= 1 ? "major" : "non_major";
+
+    return {
+      classification,
+      findings,
+      summary:
+        `${metCount} von ${findings.length} Kriterien erreichen (nach einfacher Heuristik) ihre Schwelle. ` +
+        "Dies ist eine Platzhalter-Bewertung und ersetzt keine fachliche/KI-gestützte Einstufung. [Mock]",
+      confidence: 0.5,
+    };
+  }
+}
