@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
+import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
   title: "IKT-Vorfall – Klassifizierung",
@@ -31,23 +31,27 @@ export default function RootLayout({
       lang="de"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="border-b">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-            <Link href="/" className="font-semibold">
-              IKT-Vorfall-Klassifizierung
-            </Link>
-            <nav className="flex gap-4 text-sm">
-              <Link href="/triage" className="hover:underline">
-                Triage
-              </Link>
-              <Link href="/severity" className="hover:underline">
-                Schweregrad
-              </Link>
-            </nav>
+      <body className="relative min-h-full flex flex-col bg-background text-foreground">
+        {/* Dekorativer Hintergrund */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        >
+          <div className="absolute -top-40 left-1/2 size-[42rem] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+          <div className="absolute top-1/3 -right-40 size-[34rem] rounded-full bg-violet-500/10 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,var(--border)_1px,transparent_0)] [background-size:32px_32px] opacity-40" />
+        </div>
+
+        <SiteHeader />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+          {children}
+        </main>
+        <footer className="border-t border-border/60 py-6">
+          <div className="mx-auto max-w-6xl px-6 text-xs text-muted-foreground">
+            Vorab-Gerüst · Bewertung über austauschbare Service-Schnittstellen ·
+            KI-Auswertung folgt.
           </div>
-        </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</main>
+        </footer>
         <Toaster />
       </body>
     </html>

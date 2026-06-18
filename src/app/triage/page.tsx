@@ -1,21 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, HelpCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  HelpCircle,
+  Loader2,
+  ShieldQuestion,
+} from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { TriageInput, TriageResult } from "@/lib/schemas";
 
 export default function TriagePage() {
@@ -54,117 +56,184 @@ export default function TriagePage() {
     }
   }
 
+  const tone = !result
+    ? null
+    : result.isIncident
+      ? {
+          icon: AlertTriangle,
+          label: "Möglicher IKT-Vorfall",
+          bar: "bg-destructive",
+          chip: "bg-destructive/10 text-destructive",
+        }
+      : result.confidence < 0.5
+        ? {
+            icon: HelpCircle,
+            label: "Einordnung unklar",
+            bar: "bg-warning",
+            chip: "bg-warning/15 text-warning",
+          }
+        : {
+            icon: CheckCircle2,
+            label: "Kein IKT-Vorfall",
+            bar: "bg-success",
+            chip: "bg-success/15 text-success",
+          };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Vorfall beschreiben</CardTitle>
-          <CardDescription>
-            Erfassen Sie das mögliche Ereignis. Die Anwendung schätzt ein, ob ein
-            IKT-Vorfall vorliegt.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="description">Beschreibung</Label>
-              <Textarea
-                id="description"
-                required
-                rows={5}
-                placeholder="Was ist passiert?"
-                value={form.description}
-                onChange={(e) => update("description", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="affectedSystem">Betroffenes System / Dienst</Label>
-              <Input
-                id="affectedSystem"
-                required
-                placeholder="z. B. Online-Banking, E-Mail"
-                value={form.affectedSystem}
-                onChange={(e) => update("affectedSystem", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reportedBy">Gemeldet von</Label>
-              <Input
-                id="reportedBy"
-                required
-                placeholder="Name / Abteilung"
-                value={form.reportedBy}
-                onChange={(e) => update("reportedBy", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="symptoms">Symptome / Auswirkungen (optional)</Label>
-              <Textarea
-                id="symptoms"
-                rows={3}
-                placeholder="Beobachtete Auswirkungen"
-                value={form.symptoms}
-                onChange={(e) => update("symptoms", e.target.value)}
-              />
-            </div>
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading && <Loader2 className="size-4 animate-spin" />}
-              Einschätzung anfordern
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="space-y-8">
+      <PageHeader
+        step="Schritt 01"
+        title="Triage"
+        desc="Erfassen Sie das mögliche Ereignis. Die Anwendung schätzt ein, ob ein IKT-Vorfall vorliegt."
+      />
 
-      <div className="space-y-4">
-        {!result && (
-          <Card className="border-dashed">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Das Ergebnis erscheint hier nach dem Absenden.
-            </CardContent>
-          </Card>
-        )}
+      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card className="border-border/60 bg-card/70 backdrop-blur">
+          <CardContent className="p-6">
+            <form onSubmit={onSubmit} className="space-y-5">
+              <Field label="Beschreibung" htmlFor="description">
+                <Textarea
+                  id="description"
+                  required
+                  rows={5}
+                  placeholder="Was ist passiert?"
+                  value={form.description}
+                  onChange={(e) => update("description", e.target.value)}
+                />
+              </Field>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="Betroffenes System / Dienst" htmlFor="affectedSystem">
+                  <Input
+                    id="affectedSystem"
+                    required
+                    placeholder="z. B. Online-Banking"
+                    value={form.affectedSystem}
+                    onChange={(e) => update("affectedSystem", e.target.value)}
+                  />
+                </Field>
+                <Field label="Gemeldet von" htmlFor="reportedBy">
+                  <Input
+                    id="reportedBy"
+                    required
+                    placeholder="Name / Abteilung"
+                    value={form.reportedBy}
+                    onChange={(e) => update("reportedBy", e.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field
+                label="Symptome / Auswirkungen (optional)"
+                htmlFor="symptoms"
+              >
+                <Textarea
+                  id="symptoms"
+                  rows={3}
+                  placeholder="Beobachtete Auswirkungen"
+                  value={form.symptoms}
+                  onChange={(e) => update("symptoms", e.target.value)}
+                />
+              </Field>
+              <Button type="submit" disabled={loading} className="w-full" size="lg">
+                {loading && <Loader2 className="size-4 animate-spin" />}
+                Einschätzung anfordern
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-        {result && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                {result.isIncident ? (
-                  <AlertTriangle className="size-5 text-destructive" />
-                ) : result.confidence < 0.5 ? (
-                  <HelpCircle className="size-5 text-muted-foreground" />
-                ) : (
-                  <CheckCircle2 className="size-5 text-green-600" />
-                )}
-                <CardTitle>
-                  {result.isIncident
-                    ? "Möglicher IKT-Vorfall"
-                    : "Kein IKT-Vorfall"}
-                </CardTitle>
-              </div>
-              <CardDescription>{result.recommendation}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div>
-                <span className="font-medium">Begründung: </span>
-                {result.reasoning}
-              </div>
-              <Badge variant="secondary">
-                Konfidenz: {(result.confidence * 100).toFixed(0)} %
-              </Badge>
-              {result.isIncident && (
-                <div className="pt-2">
-                  <Link
-                    href="/severity"
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
+        <div>
+          {!result && (
+            <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/20 p-8 text-center">
+              <ShieldQuestion className="size-8 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">
+                Das Ergebnis erscheint hier nach dem Absenden.
+              </p>
+            </div>
+          )}
+
+          {result && tone && (
+            <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
+              <div className={cn("absolute inset-x-0 top-0 h-1", tone.bar)} />
+              <CardContent className="space-y-4 p-6">
+                <div className="flex items-start gap-3">
+                  <span
+                    className={cn(
+                      "flex size-10 items-center justify-center rounded-xl",
+                      tone.chip,
+                    )}
                   >
-                    Weiter zur Schweregradbestimmung
-                  </Link>
+                    <tone.icon className="size-5" />
+                  </span>
+                  <div className="space-y-0.5">
+                    <h3 className="font-semibold">{tone.label}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {result.recommendation}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Begründung: </span>
+                  {result.reasoning}
+                </p>
+                <div className="flex items-center justify-between">
+                  <Badge variant="secondary">
+                    Konfidenz {(result.confidence * 100).toFixed(0)} %
+                  </Badge>
+                  {result.isIncident && (
+                    <Link
+                      href="/severity"
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "gap-1.5",
+                      )}
+                    >
+                      Schweregrad bestimmen
+                      <ArrowRight className="size-4" />
+                    </Link>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function PageHeader({
+  step,
+  title,
+  desc,
+}: {
+  step: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="text-xs font-medium uppercase tracking-wider text-primary">
+        {step}
+      </span>
+      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="max-w-2xl text-sm text-muted-foreground">{desc}</p>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
     </div>
   );
 }
