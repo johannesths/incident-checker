@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShieldQuestion,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { CRITERION_BY_ID } from "@/lib/dora/criteria";
+import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
 import type { SeverityResult } from "@/lib/schemas";
 
 interface FormState {
@@ -121,6 +123,26 @@ export default function SeverityPage() {
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="border-border/60 bg-card/70 backdrop-blur">
           <CardContent className="p-6">
+            <div className="mb-5 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                <Sparkles className="size-3.5" />
+                Beispiel laden
+              </span>
+              {SEVERITY_SCENARIOS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  title={s.hint}
+                  onClick={() => {
+                    setForm(s.data);
+                    setResult(null);
+                  }}
+                  className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
             <form onSubmit={onSubmit} className="space-y-5">
               <Field label="Vorfallbeschreibung" htmlFor="description">
                 <Textarea
