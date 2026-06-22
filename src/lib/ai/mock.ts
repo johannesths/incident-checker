@@ -1,4 +1,4 @@
-import { DORA_CRITERIA } from "@/lib/dora/criteria";
+import { DORA_CRITERIA, DORA_THRESHOLDS } from "@/lib/dora/criteria";
 import type {
   TriageInput,
   TriageResult,
@@ -91,18 +91,25 @@ export class MockSeverityService implements SeverityService {
       let assessment = "Keine ausreichenden Angaben zur Bewertung. [Mock]";
 
       switch (criterion.id) {
-        case "clients_transactions":
-          thresholdMet = Boolean(input.clientsAffected || input.transactionsAffected);
-          assessment = thresholdMet
-            ? `Betroffene Kunden/Transaktionen angegeben: ${input.clientsAffected} ${input.transactionsAffected}`.trim()
-            : "Keine betroffenen Kunden/Transaktionen angegeben.";
+        case "clients_transactions": {
+          const clients = input.clientsAffected ?? 0;
+          const clientsPct = input.clientsAffectedPercent ?? 0;
+          const transactions = input.transactionsAffected ?? 0;
+          thresholdMet =
+            clientsPct > DORA_THRESHOLDS.clientsPercent ||
+            clients > DORA_THRESHOLDS.clientsAbsolute ||
+            transactions > DORA_THRESHOLDS.transactions;
+          assessment = `Betroffene Kunden: ${clients} (${clientsPct} %), Transaktionen: ${transactions}`;
           break;
+        }
         case "duration_downtime":
-          thresholdMet = (input.durationHours ?? 0) > 24 || (input.downtimeHours ?? 0) > 2;
+          thresholdMet =
+            (input.durationHours ?? 0) > DORA_THRESHOLDS.durationHours ||
+            (input.downtimeHours ?? 0) > DORA_THRESHOLDS.downtimeHours;
           assessment = `Dauer: ${input.durationHours ?? 0} h, Ausfallzeit: ${input.downtimeHours ?? 0} h`;
           break;
         case "geographical_spread":
-          thresholdMet = (input.memberStatesAffected ?? 0) >= 2;
+          thresholdMet = (input.memberStatesAffected ?? 0) >= DORA_THRESHOLDS.memberStates;
           assessment = `Betroffene Mitgliedstaaten: ${input.memberStatesAffected ?? 0}`;
           break;
         case "data_losses":
@@ -116,7 +123,7 @@ export class MockSeverityService implements SeverityService {
             : "Keine kritische Funktion als betroffen markiert.";
           break;
         case "economic_impact":
-          thresholdMet = (input.economicImpactEur ?? 0) > 100000;
+          thresholdMet = (input.economicImpactEur ?? 0) > DORA_THRESHOLDS.economicImpactEur;
           assessment = `Geschätzte Kosten/Verluste: ${input.economicImpactEur ?? 0} EUR`;
           break;
         case "reputational_impact":

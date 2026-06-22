@@ -101,3 +101,26 @@ export const DORA_CRITERIA: DoraCriterion[] = [
 export const CRITERION_BY_ID: Record<CriterionId, DoraCriterion> = Object.fromEntries(
   DORA_CRITERIA.map((c) => [c.id, c]),
 ) as Record<CriterionId, DoraCriterion>;
+
+/**
+ * Numerische Materialitätsschwellen für die regelbasierte (Mock-)Bewertung.
+ *
+ * ACHTUNG: Illustrative Werte – vor Produktiveinsatz gegen den aktuellen
+ * DORA-RTS (Delegierte VO (EU) 2024/1772) zu verifizieren.
+ */
+export const DORA_THRESHOLDS = {
+  /** Anteil betroffener Kunden in Prozent. */
+  clientsPercent: 10,
+  /** Absolute Anzahl betroffener Kunden. */
+  clientsAbsolute: 100_000,
+  /** Anzahl betroffener Transaktionen. */
+  transactions: 10_000,
+  /** Gesamtdauer des Vorfalls in Stunden. */
+  durationHours: 24,
+  /** Ausfallzeit in Stunden. */
+  downtimeHours: 2,
+  /** Anzahl betroffener Mitgliedstaaten. */
+  memberStates: 2,
+  /** Wirtschaftlicher Schaden in EUR. */
+  economicImpactEur: 100_000,
+} as const;

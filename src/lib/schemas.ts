@@ -40,13 +40,19 @@ export type TriageResult = z.infer<typeof triageResultSchema>;
 export const severityInputSchema = z.object({
   /** Verweis/Zusammenfassung des Vorfalls (z. B. aus der Triage übernommen). */
   description: z.string().min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
-  clientsAffected: z.string().optional().default(""),
-  transactionsAffected: z.string().optional().default(""),
+  /** Anzahl betroffener Kunden (absolut). */
+  clientsAffected: z.coerce.number().min(0).optional(),
+  /** Anteil betroffener Kunden in Prozent. */
+  clientsAffectedPercent: z.coerce.number().min(0).max(100).optional(),
+  /** Anzahl betroffener Transaktionen. */
+  transactionsAffected: z.coerce.number().min(0).optional(),
   durationHours: z.coerce.number().min(0).optional(),
   downtimeHours: z.coerce.number().min(0).optional(),
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
+  /** Qualitative Beschreibung etwaiger Datenverluste. */
   dataLosses: z.string().optional().default(""),
   criticalServicesAffected: z.boolean().optional().default(false),
+  /** Qualitative Beschreibung der Reputationsauswirkung. */
   reputationalImpact: z.string().optional().default(""),
   economicImpactEur: z.coerce.number().min(0).optional(),
 });

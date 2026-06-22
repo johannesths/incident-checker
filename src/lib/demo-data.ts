@@ -56,6 +56,7 @@ export const TRIAGE_SCENARIOS: TriageScenario[] = [
 export interface SeverityScenarioData {
   description: string;
   clientsAffected: string;
+  clientsAffectedPercent: string;
   transactionsAffected: string;
   durationHours: string;
   downtimeHours: string;
@@ -81,8 +82,9 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
     data: {
       description:
         "Ausfall des Online-Bankings durch Ransomware. Kunden können keine Überweisungen tätigen.",
-      clientsAffected: "ca. 120.000 Kunden (> 20 %)",
-      transactionsAffected: "ca. 35.000 Transaktionen blockiert",
+      clientsAffected: "120000",
+      clientsAffectedPercent: "20",
+      transactionsAffected: "35000",
       durationHours: "30",
       downtimeHours: "6",
       memberStatesAffected: "3",
@@ -100,6 +102,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       description:
         "Kurzzeitige Verzögerung im internen Reporting, keine Kundenauswirkung.",
       clientsAffected: "",
+      clientsAffectedPercent: "",
       transactionsAffected: "",
       durationHours: "1",
       downtimeHours: "0.5",

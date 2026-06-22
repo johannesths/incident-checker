@@ -37,7 +37,7 @@ export default function Home() {
         </span>
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
           Klassifizierung von{" "}
-          <span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-primary to-violet-500 bg-clip-text text-transparent">
             IKT-Vorfällen
           </span>
         </h1>
@@ -70,7 +70,7 @@ export default function Home() {
               <CardContent className="flex h-full flex-col gap-4 p-6">
                 <div className="flex items-center justify-between">
                   <span
-                    className={`flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br ${accent} text-white shadow-md`}
+                    className={`flex size-11 items-center justify-center rounded-2xl bg-linear-to-br ${accent} text-white shadow-md`}
                   >
                     <Icon className="size-5" />
                   </span>

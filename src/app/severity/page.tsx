@@ -24,6 +24,7 @@ import type { SeverityResult } from "@/lib/schemas";
 interface FormState {
   description: string;
   clientsAffected: string;
+  clientsAffectedPercent: string;
   transactionsAffected: string;
   durationHours: string;
   downtimeHours: string;
@@ -37,6 +38,7 @@ interface FormState {
 const initial: FormState = {
   description: "",
   clientsAffected: "",
+  clientsAffectedPercent: "",
   transactionsAffected: "",
   durationHours: "",
   downtimeHours: "",
@@ -154,21 +156,41 @@ export default function SeverityPage() {
                 />
               </Field>
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="Betroffene Kunden" htmlFor="clientsAffected">
+                <Field label="Betroffene Kunden (Anzahl)" htmlFor="clientsAffected">
                   <Input
                     id="clientsAffected"
-                    placeholder="Anzahl / Anteil"
+                    type="number"
+                    min={0}
+                    placeholder="z. B. 120000"
                     value={form.clientsAffected}
                     onChange={(e) => update("clientsAffected", e.target.value)}
                   />
                 </Field>
                 <Field
-                  label="Betroffene Transaktionen"
+                  label="Betroffene Kunden (%)"
+                  htmlFor="clientsAffectedPercent"
+                >
+                  <Input
+                    id="clientsAffectedPercent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="z. B. 20"
+                    value={form.clientsAffectedPercent}
+                    onChange={(e) =>
+                      update("clientsAffectedPercent", e.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Betroffene Transaktionen (Anzahl)"
                   htmlFor="transactionsAffected"
                 >
                   <Input
                     id="transactionsAffected"
-                    placeholder="Anzahl / Wert"
+                    type="number"
+                    min={0}
+                    placeholder="z. B. 35000"
                     value={form.transactionsAffected}
                     onChange={(e) =>
                       update("transactionsAffected", e.target.value)
