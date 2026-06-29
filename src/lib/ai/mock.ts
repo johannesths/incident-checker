@@ -136,14 +136,31 @@ export class MockSeverityService implements SeverityService {
     });
 
     const metCount = findings.filter((f) => f.thresholdMet).length;
-    const classification = metCount >= 1 ? "major" : "non_major";
+    // Erreichte Schwellen ohne das Kriterium "Kritikalität der Dienste" selbst.
+    const otherMetCount = findings.filter(
+      (f) => f.thresholdMet && f.criterionId !== "critical_services",
+    ).length;
+
+    // Voraussetzung: Ohne Betroffenheit einer kritischen oder wichtigen Funktion
+    // liegt nie ein schwerwiegender Vorfall vor. Zusätzlich muss mindestens ein
+    // weiteres Kriterium seine Schwelle erreichen.
+    const criticalAffected = Boolean(input.criticalServicesAffected);
+    const classification =
+      criticalAffected && otherMetCount >= 1 ? "major" : "non_major";
+
+    const summary = !criticalAffected
+      ? "Keine kritische oder wichtige Funktion betroffen – daher kein schwerwiegender Vorfall, " +
+        `unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`
+      : otherMetCount >= 1
+        ? `Kritische Funktion betroffen und ${otherMetCount} weitere(s) Kriterium/Kriterien erreichen ihre Schwelle ` +
+          `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend. [Mock]`
+        : "Kritische Funktion betroffen, jedoch erreicht kein weiteres Kriterium seine Schwelle – " +
+          "daher kein schwerwiegender Vorfall. [Mock]";
 
     return {
       classification,
       findings,
-      summary:
-        `${metCount} von ${findings.length} Kriterien erreichen (nach einfacher Heuristik) ihre Schwelle. ` +
-        "Dies ist eine Platzhalter-Bewertung und ersetzt keine fachliche/KI-gestützte Einstufung. [Mock]",
+      summary,
       confidence: 0.5,
     };
   }
