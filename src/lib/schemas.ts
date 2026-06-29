@@ -52,6 +52,12 @@ export const severityInputSchema = z.object({
   /** Qualitative Beschreibung etwaiger Datenverluste. */
   dataLosses: z.string().optional().default(""),
   criticalServicesAffected: z.boolean().optional().default(false),
+  /**
+   * Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme,
+   * der zu Datenverlusten führen kann. Erzwingt – bei betroffener kritischer
+   * Funktion – die Einstufung als schwerwiegend.
+   */
+  maliciousUnauthorizedAccess: z.boolean().optional().default(false),
   /** Qualitative Beschreibung der Reputationsauswirkung. */
   reputationalImpact: z.string().optional().default(""),
   economicImpactEur: z.coerce.number().min(0).optional(),

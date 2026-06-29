@@ -63,6 +63,7 @@ export interface SeverityScenarioData {
   memberStatesAffected: string;
   dataLosses: string;
   criticalServicesAffected: boolean;
+  maliciousUnauthorizedAccess: boolean;
   reputationalImpact: string;
   economicImpactEur: string;
 }
@@ -90,8 +91,49 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       memberStatesAffected: "3",
       dataLosses: "Verfügbarkeit beeinträchtigt, Integrität in Prüfung",
       criticalServicesAffected: true,
+      maliciousUnauthorizedAccess: true,
       reputationalImpact: "Medienberichterstattung, zahlreiche Kundenbeschwerden",
       economicImpactEur: "750000",
+    },
+  },
+  {
+    id: "malicious-access",
+    label: "Gezielter Angriff",
+    hint: "erwartet: schwerwiegend (Override)",
+    data: {
+      description:
+        "Böswilliger unbefugter Zugriff auf das Kernbankensystem mit möglichem Datenverlust, sonst geringe messbare Auswirkung.",
+      clientsAffected: "",
+      clientsAffectedPercent: "",
+      transactionsAffected: "",
+      durationHours: "2",
+      downtimeHours: "0",
+      memberStatesAffected: "0",
+      dataLosses: "Mögliche Exfiltration vertraulicher Daten",
+      criticalServicesAffected: true,
+      maliciousUnauthorizedAccess: true,
+      reputationalImpact: "",
+      economicImpactEur: "0",
+    },
+  },
+  {
+    id: "critical-single",
+    label: "Kritisch, 1 Kriterium",
+    hint: "erwartet: nicht schwerwiegend",
+    data: {
+      description:
+        "Kritische Funktion betroffen, aber nur ein weiteres Kriterium erreicht die Schwelle.",
+      clientsAffected: "",
+      clientsAffectedPercent: "15",
+      transactionsAffected: "",
+      durationHours: "1",
+      downtimeHours: "0",
+      memberStatesAffected: "0",
+      dataLosses: "",
+      criticalServicesAffected: true,
+      maliciousUnauthorizedAccess: false,
+      reputationalImpact: "",
+      economicImpactEur: "0",
     },
   },
   {
@@ -109,6 +151,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       memberStatesAffected: "0",
       dataLosses: "",
       criticalServicesAffected: false,
+      maliciousUnauthorizedAccess: false,
       reputationalImpact: "",
       economicImpactEur: "0",
     },

@@ -141,21 +141,34 @@ export class MockSeverityService implements SeverityService {
       (f) => f.thresholdMet && f.criterionId !== "critical_services",
     ).length;
 
-    // Voraussetzung: Ohne Betroffenheit einer kritischen oder wichtigen Funktion
-    // liegt nie ein schwerwiegender Vorfall vor. Zusätzlich muss mindestens ein
-    // weiteres Kriterium seine Schwelle erreichen.
+    // Klassifizierungslogik:
+    // 1. Ohne Betroffenheit einer kritischen/wichtigen Funktion nie schwerwiegend.
+    // 2. Bei betroffener kritischer Funktion ist der Vorfall schwerwiegend, wenn
+    //    entweder ein böswilliger unbefugter Zugriff mit möglichem Datenverlust
+    //    vorliegt ODER mindestens zwei weitere Kriterien ihre Schwelle erreichen.
     const criticalAffected = Boolean(input.criticalServicesAffected);
-    const classification =
-      criticalAffected && otherMetCount >= 1 ? "major" : "non_major";
+    const maliciousAccess = Boolean(input.maliciousUnauthorizedAccess);
+    const major = criticalAffected && (maliciousAccess || otherMetCount >= 2);
+    const classification = major ? "major" : "non_major";
 
-    const summary = !criticalAffected
-      ? "Keine kritische oder wichtige Funktion betroffen – daher kein schwerwiegender Vorfall, " +
-        `unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`
-      : otherMetCount >= 1
-        ? `Kritische Funktion betroffen und ${otherMetCount} weitere(s) Kriterium/Kriterien erreichen ihre Schwelle ` +
-          `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend. [Mock]`
-        : "Kritische Funktion betroffen, jedoch erreicht kein weiteres Kriterium seine Schwelle – " +
-          "daher kein schwerwiegender Vorfall. [Mock]";
+    let summary: string;
+    if (!criticalAffected) {
+      summary =
+        "Keine kritische oder wichtige Funktion betroffen – daher kein schwerwiegender Vorfall, " +
+        `unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`;
+    } else if (maliciousAccess) {
+      summary =
+        "Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme mit möglichem " +
+        "Datenverlust bei betroffener kritischer Funktion – stets schwerwiegender Vorfall. [Mock]";
+    } else if (otherMetCount >= 2) {
+      summary =
+        `Kritische Funktion betroffen und ${otherMetCount} weitere Kriterien erreichen ihre Schwelle ` +
+        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend. [Mock]`;
+    } else {
+      summary =
+        `Kritische Funktion betroffen, jedoch erreichen weniger als zwei weitere Kriterien ihre Schwelle ` +
+        `(${otherMetCount} erreicht) und kein böswilliger Zugriff – daher kein schwerwiegender Vorfall. [Mock]`;
+    }
 
     return {
       classification,

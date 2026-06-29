@@ -31,6 +31,7 @@ interface FormState {
   memberStatesAffected: string;
   dataLosses: string;
   criticalServicesAffected: boolean;
+  maliciousUnauthorizedAccess: boolean;
   reputationalImpact: string;
   economicImpactEur: string;
 }
@@ -45,6 +46,7 @@ const initial: FormState = {
   memberStatesAffected: "",
   dataLosses: "",
   criticalServicesAffected: false,
+  maliciousUnauthorizedAccess: false,
   reputationalImpact: "",
   economicImpactEur: "",
 };
@@ -268,6 +270,20 @@ export default function SeverityPage() {
                   }
                 />
                 Kritische oder wichtige Funktion betroffen
+              </label>
+              <label className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 accent-primary"
+                  checked={form.maliciousUnauthorizedAccess}
+                  onChange={(e) =>
+                    update("maliciousUnauthorizedAccess", e.target.checked)
+                  }
+                />
+                <span>
+                  Böswilliger unbefugter Zugriff auf die Netzwerk- und
+                  Informationssysteme, der zu Datenverlusten führen kann
+                </span>
               </label>
               <Button type="submit" disabled={loading} className="w-full" size="lg">
                 {loading && <Loader2 className="size-4 animate-spin" />}
