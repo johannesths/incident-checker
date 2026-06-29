@@ -13,7 +13,7 @@ const STEPS = [
     step: "01",
     icon: ShieldQuestion,
     title: "Triage",
-    desc: "Liegt überhaupt ein IKT-bezogener Vorfall vor? Sie erhalten eine Einschätzung und eine Empfehlung zum weiteren Vorgehen – etwa, dass der ServiceDesk zuständig ist.",
+    desc: "Liegt überhaupt ein IKT-bezogener Vorfall vor, oder handelt es sich um ein reguläres Support-Anliegen? Sie beschreiben das Ereignis und erhalten eine Einschätzung samt Empfehlung zum weiteren Vorgehen – etwa, dass der ServiceDesk zuständig ist.",
     accent: "from-primary to-violet-500",
   },
   {
@@ -21,7 +21,7 @@ const STEPS = [
     step: "02",
     icon: ListChecks,
     title: "Schweregrad (DORA)",
-    desc: "Einstufung als schwerwiegender Vorfall anhand der DORA-Klassifizierungskriterien – transparent je Einzelkriterium aufgeschlüsselt.",
+    desc: "Einstufung eines bestätigten Vorfalls als schwerwiegend anhand der DORA-Klassifizierungskriterien – je Einzelkriterium transparent aufgeschlüsselt, ob die Materialitätsschwelle erreicht ist.",
     accent: "from-violet-500 to-fuchsia-500",
   },
 ];
@@ -42,8 +42,11 @@ export default function Home() {
           </span>
         </h1>
         <p className="mx-auto max-w-2xl text-pretty text-muted-foreground sm:text-lg">
-          Erfassen Sie ein mögliches Ereignis, prüfen Sie die Zuständigkeit und
-          bestimmen Sie den Schweregrad nach DORA – in zwei klaren Schritten.
+          Diese Anwendung unterstützt Finanzunternehmen dabei, mögliche
+          IKT-bezogene Vorfälle nach den Vorgaben der EU-Verordnung DORA
+          einzuordnen: Erfassen Sie ein Ereignis, prüfen Sie die Zuständigkeit
+          und bestimmen Sie den Schweregrad – nachvollziehbar und in zwei klaren
+          Schritten.
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
           <Link
@@ -92,8 +95,10 @@ export default function Home() {
         ))}
       </section>
 
-      <p className="text-center text-xs text-muted-foreground">
-        Hinweis: Die Bewertung erfolgt derzeit über eine Platzhalter-Logik. Die
+      <p className="mx-auto max-w-2xl text-center text-xs text-muted-foreground">
+        Hinweis: Die Anwendung dient der Entscheidungsunterstützung und ersetzt
+        keine abschließende fachliche Bewertung oder die formale Meldung an die
+        Aufsicht. Die Bewertung erfolgt derzeit über eine Platzhalter-Logik; die
         Schwellenwerte sind gegen den aktuellen DORA-RTS zu verifizieren.
       </p>
     </div>
