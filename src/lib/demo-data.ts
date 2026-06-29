@@ -1,4 +1,5 @@
 import type { TriageInput } from "@/lib/schemas";
+import type { DataLossDimension, ReputationLevel } from "@/lib/dora/criteria";
 
 /**
  * Beispiel-Szenarien zum Vorführen des Tools ohne echte Eingaben.
@@ -57,14 +58,14 @@ export interface SeverityScenarioData {
   description: string;
   clientsAffected: string;
   clientsAffectedPercent: string;
-  transactionsAffected: string;
+  transactionsValuePercent: string;
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
-  dataLosses: string;
+  dataLossDimensions: DataLossDimension[];
   criticalServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
-  reputationalImpact: string;
+  reputationalImpactLevel: ReputationLevel;
   economicImpactEur: string;
 }
 
@@ -85,14 +86,14 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Ausfall des Online-Bankings durch Ransomware. Kunden können keine Überweisungen tätigen.",
       clientsAffected: "120000",
       clientsAffectedPercent: "20",
-      transactionsAffected: "35000",
+      transactionsValuePercent: "25",
       durationHours: "30",
       downtimeHours: "6",
       memberStatesAffected: "3",
-      dataLosses: "Verfügbarkeit beeinträchtigt, Integrität in Prüfung",
+      dataLossDimensions: ["availability", "integrity"],
       criticalServicesAffected: true,
       maliciousUnauthorizedAccess: true,
-      reputationalImpact: "Medienberichterstattung, zahlreiche Kundenbeschwerden",
+      reputationalImpactLevel: "significant",
       economicImpactEur: "750000",
     },
   },
@@ -105,14 +106,14 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Böswilliger unbefugter Zugriff auf das Kernbankensystem mit möglichem Datenverlust, sonst geringe messbare Auswirkung.",
       clientsAffected: "",
       clientsAffectedPercent: "",
-      transactionsAffected: "",
+      transactionsValuePercent: "",
       durationHours: "2",
       downtimeHours: "0",
       memberStatesAffected: "0",
-      dataLosses: "Mögliche Exfiltration vertraulicher Daten",
+      dataLossDimensions: ["confidentiality"],
       criticalServicesAffected: true,
       maliciousUnauthorizedAccess: true,
-      reputationalImpact: "",
+      reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },
   },
@@ -125,14 +126,14 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Kritische Funktion betroffen, aber nur ein weiteres Kriterium erreicht die Schwelle.",
       clientsAffected: "",
       clientsAffectedPercent: "15",
-      transactionsAffected: "",
+      transactionsValuePercent: "",
       durationHours: "1",
       downtimeHours: "0",
       memberStatesAffected: "0",
-      dataLosses: "",
+      dataLossDimensions: [],
       criticalServicesAffected: true,
       maliciousUnauthorizedAccess: false,
-      reputationalImpact: "",
+      reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },
   },
@@ -145,14 +146,14 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Kurzzeitige Verzögerung im internen Reporting, keine Kundenauswirkung.",
       clientsAffected: "",
       clientsAffectedPercent: "",
-      transactionsAffected: "",
+      transactionsValuePercent: "",
       durationHours: "1",
       downtimeHours: "0.5",
       memberStatesAffected: "0",
-      dataLosses: "",
+      dataLossDimensions: [],
       criticalServicesAffected: false,
       maliciousUnauthorizedAccess: false,
-      reputationalImpact: "",
+      reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },
   },

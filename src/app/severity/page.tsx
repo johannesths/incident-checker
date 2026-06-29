@@ -19,7 +19,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { CRITERION_BY_ID } from "@/lib/dora/criteria";
+import {
+  CRITERION_BY_ID,
+  DATA_LOSS_DIMENSIONS,
+  REPUTATION_LEVELS,
+  type DataLossDimension,
+  type ReputationLevel,
+} from "@/lib/dora/criteria";
 import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
 import type { SeverityResult } from "@/lib/schemas";
 
@@ -27,14 +33,14 @@ interface FormState {
   description: string;
   clientsAffected: string;
   clientsAffectedPercent: string;
-  transactionsAffected: string;
+  transactionsValuePercent: string;
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
-  dataLosses: string;
+  dataLossDimensions: DataLossDimension[];
   criticalServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
-  reputationalImpact: string;
+  reputationalImpactLevel: ReputationLevel;
   economicImpactEur: string;
 }
 
@@ -42,14 +48,14 @@ const initial: FormState = {
   description: "",
   clientsAffected: "",
   clientsAffectedPercent: "",
-  transactionsAffected: "",
+  transactionsValuePercent: "",
   durationHours: "",
   downtimeHours: "",
   memberStatesAffected: "",
-  dataLosses: "",
+  dataLossDimensions: [],
   criticalServicesAffected: false,
   maliciousUnauthorizedAccess: false,
-  reputationalImpact: "",
+  reputationalImpactLevel: "none",
   economicImpactEur: "",
 };
 
@@ -92,6 +98,15 @@ export default function SeverityPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function toggleDataLoss(id: DataLossDimension) {
+    setForm((f) => ({
+      ...f,
+      dataLossDimensions: f.dataLossDimensions.includes(id)
+        ? f.dataLossDimensions.filter((x) => x !== id)
+        : [...f.dataLossDimensions, id],
+    }));
   }
 
   function reset() {
@@ -161,7 +176,7 @@ export default function SeverityPage() {
     setResult(null);
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     await classify(form);
   }
@@ -365,17 +380,18 @@ export default function SeverityPage() {
                       />
                     </Field>
                     <Field
-                      label="Betroffene Transaktionen (Anzahl)"
-                      htmlFor="transactionsAffected"
+                      label="Betroffener Transaktionswert (% des Tagesvolumens)"
+                      htmlFor="transactionsValuePercent"
                     >
                       <Input
-                        id="transactionsAffected"
+                        id="transactionsValuePercent"
                         type="number"
                         min={0}
-                        placeholder="z. B. 35000"
-                        value={form.transactionsAffected}
+                        max={100}
+                        placeholder="z. B. 15"
+                        value={form.transactionsValuePercent}
                         onChange={(e) =>
-                          update("transactionsAffected", e.target.value)
+                          update("transactionsValuePercent", e.target.value)
                         }
                       />
                     </Field>
@@ -426,27 +442,53 @@ export default function SeverityPage() {
                       />
                     </Field>
                   </div>
-                  <Field label="Datenverluste" htmlFor="dataLosses">
-                    <Input
-                      id="dataLosses"
-                      placeholder="Verfügbarkeit / Integrität / Authentizität / Vertraulichkeit"
-                      value={form.dataLosses}
-                      onChange={(e) => update("dataLosses", e.target.value)}
-                    />
-                  </Field>
-                  <Field
-                    label="Reputationsauswirkung"
-                    htmlFor="reputationalImpact"
-                  >
-                    <Input
-                      id="reputationalImpact"
-                      placeholder="z. B. Medienberichte, Beschwerden"
-                      value={form.reputationalImpact}
-                      onChange={(e) =>
-                        update("reputationalImpact", e.target.value)
-                      }
-                    />
-                  </Field>
+                  <div className="space-y-2">
+                    <Label>Datenverluste</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {DATA_LOSS_DIMENSIONS.map((d) => {
+                        const active = form.dataLossDimensions.includes(d.id);
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleDataLoss(d.id)}
+                            className={cn(
+                              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                              active
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+                            )}
+                          >
+                            {d.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Betroffene Schutzziele auswählen – die Schwelle gilt als
+                      erreicht, sobald mindestens eines betroffen ist.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Reputationsauswirkung</Label>
+                    <div className="flex gap-2">
+                      {REPUTATION_LEVELS.map((l) => (
+                        <ChoiceButton
+                          key={l.id}
+                          selected={form.reputationalImpactLevel === l.id}
+                          onClick={() =>
+                            update("reputationalImpactLevel", l.id)
+                          }
+                        >
+                          {l.label}
+                        </ChoiceButton>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Nur „Erheblich“ erreicht die Materialitätsschwelle.
+                    </p>
+                  </div>
                   <Button
                     type="submit"
                     disabled={loading}

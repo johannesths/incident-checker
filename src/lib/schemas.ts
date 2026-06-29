@@ -1,7 +1,17 @@
 import { z } from "zod";
-import { DORA_CRITERIA, type CriterionId } from "@/lib/dora/criteria";
+import {
+  DORA_CRITERIA,
+  DATA_LOSS_DIMENSIONS,
+  type CriterionId,
+  type DataLossDimension,
+} from "@/lib/dora/criteria";
 
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
+
+const dataLossIds = DATA_LOSS_DIMENSIONS.map((d) => d.id) as [
+  DataLossDimension,
+  ...DataLossDimension[],
+];
 
 /* ---------------------------------------------------------------------------
  * Funktion 1: Triage – Handelt es sich um einen IKT-bezogenen Vorfall?
@@ -12,8 +22,8 @@ export const triageInputSchema = z.object({
   description: z.string().min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
   /** Betroffenes System / betroffener Dienst. */
   affectedSystem: z.string().min(1, "Bitte geben Sie das betroffene System an."),
-  /** Wer hat den Vorfall gemeldet? */
-  reportedBy: z.string().min(1, "Bitte geben Sie an, wer gemeldet hat."),
+  /** Wer hat den Vorfall gemeldet? (optional, reine Dokumentation) */
+  reportedBy: z.string().optional().default(""),
   /** Beobachtete Symptome / Auswirkungen. */
   symptoms: z.string().optional().default(""),
 });
@@ -44,13 +54,13 @@ export const severityInputSchema = z.object({
   clientsAffected: z.coerce.number().min(0).optional(),
   /** Anteil betroffener Kunden in Prozent. */
   clientsAffectedPercent: z.coerce.number().min(0).max(100).optional(),
-  /** Anzahl betroffener Transaktionen. */
-  transactionsAffected: z.coerce.number().min(0).optional(),
+  /** Anteil des betroffenen täglichen Transaktionswerts in Prozent. */
+  transactionsValuePercent: z.coerce.number().min(0).max(100).optional(),
   durationHours: z.coerce.number().min(0).optional(),
   downtimeHours: z.coerce.number().min(0).optional(),
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
-  /** Qualitative Beschreibung etwaiger Datenverluste. */
-  dataLosses: z.string().optional().default(""),
+  /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit). */
+  dataLossDimensions: z.array(z.enum(dataLossIds)).optional().default([]),
   criticalServicesAffected: z.boolean().optional().default(false),
   /**
    * Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme,
@@ -58,8 +68,11 @@ export const severityInputSchema = z.object({
    * Funktion – die Einstufung als schwerwiegend.
    */
   maliciousUnauthorizedAccess: z.boolean().optional().default(false),
-  /** Qualitative Beschreibung der Reputationsauswirkung. */
-  reputationalImpact: z.string().optional().default(""),
+  /** Stufe der Reputationsauswirkung – nur "significant" erreicht die Schwelle. */
+  reputationalImpactLevel: z
+    .enum(["none", "low", "significant"])
+    .optional()
+    .default("none"),
   economicImpactEur: z.coerce.number().min(0).optional(),
 });
 

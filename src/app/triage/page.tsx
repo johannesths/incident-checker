@@ -36,7 +36,7 @@ export default function TriagePage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
@@ -119,10 +119,9 @@ export default function TriagePage() {
                     onChange={(e) => update("affectedSystem", e.target.value)}
                   />
                 </Field>
-                <Field label="Gemeldet von" htmlFor="reportedBy">
+                <Field label="Gemeldet von (optional)" htmlFor="reportedBy">
                   <Input
                     id="reportedBy"
-                    required
                     placeholder="Name / Abteilung"
                     value={form.reportedBy}
                     onChange={(e) => update("reportedBy", e.target.value)}

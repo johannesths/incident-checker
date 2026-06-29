@@ -1,4 +1,9 @@
-import { DORA_CRITERIA, DORA_THRESHOLDS } from "@/lib/dora/criteria";
+import {
+  DORA_CRITERIA,
+  DORA_THRESHOLDS,
+  DATA_LOSS_DIMENSIONS,
+  type DataLossDimension,
+} from "@/lib/dora/criteria";
 import type {
   TriageInput,
   TriageResult,
@@ -47,6 +52,10 @@ function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((n) => lower.includes(n));
 }
 
+const DATA_LOSS_LABEL = Object.fromEntries(
+  DATA_LOSS_DIMENSIONS.map((d) => [d.id, d.label]),
+) as Record<DataLossDimension, string>;
+
 export class MockTriageService implements TriageService {
   async classify(input: TriageInput): Promise<TriageResult> {
     const text = `${input.description} ${input.symptoms} ${input.affectedSystem}`;
@@ -94,12 +103,12 @@ export class MockSeverityService implements SeverityService {
         case "clients_transactions": {
           const clients = input.clientsAffected ?? 0;
           const clientsPct = input.clientsAffectedPercent ?? 0;
-          const transactions = input.transactionsAffected ?? 0;
+          const transactionsPct = input.transactionsValuePercent ?? 0;
           thresholdMet =
             clientsPct > DORA_THRESHOLDS.clientsPercent ||
             clients > DORA_THRESHOLDS.clientsAbsolute ||
-            transactions > DORA_THRESHOLDS.transactions;
-          assessment = `Betroffene Kunden: ${clients} (${clientsPct} %), Transaktionen: ${transactions}`;
+            transactionsPct > DORA_THRESHOLDS.transactionsValuePercent;
+          assessment = `Betroffene Kunden: ${clients} (${clientsPct} %), betroffener Transaktionswert: ${transactionsPct} %`;
           break;
         }
         case "duration_downtime":
@@ -112,10 +121,14 @@ export class MockSeverityService implements SeverityService {
           thresholdMet = (input.memberStatesAffected ?? 0) >= DORA_THRESHOLDS.memberStates;
           assessment = `Betroffene Mitgliedstaaten: ${input.memberStatesAffected ?? 0}`;
           break;
-        case "data_losses":
-          thresholdMet = Boolean(input.dataLosses);
-          assessment = input.dataLosses || "Keine Datenverluste angegeben.";
+        case "data_losses": {
+          const dims = input.dataLossDimensions ?? [];
+          thresholdMet = dims.length > 0;
+          assessment = dims.length
+            ? `Beeinträchtigt: ${dims.map((d) => DATA_LOSS_LABEL[d]).join(", ")}`
+            : "Keine Datenverluste angegeben.";
           break;
+        }
         case "critical_services":
           thresholdMet = Boolean(input.criticalServicesAffected);
           assessment = input.criticalServicesAffected
@@ -126,10 +139,17 @@ export class MockSeverityService implements SeverityService {
           thresholdMet = (input.economicImpactEur ?? 0) > DORA_THRESHOLDS.economicImpactEur;
           assessment = `Geschätzte Kosten/Verluste: ${input.economicImpactEur ?? 0} EUR`;
           break;
-        case "reputational_impact":
-          thresholdMet = Boolean(input.reputationalImpact);
-          assessment = input.reputationalImpact || "Keine Reputationsauswirkung angegeben.";
+        case "reputational_impact": {
+          const level = input.reputationalImpactLevel ?? "none";
+          thresholdMet = level === "significant";
+          assessment =
+            level === "significant"
+              ? "Erhebliche Reputationsauswirkung."
+              : level === "low"
+                ? "Geringe Reputationsauswirkung."
+                : "Keine Reputationsauswirkung angegeben.";
           break;
+        }
       }
 
       return { criterionId: criterion.id, thresholdMet, assessment };

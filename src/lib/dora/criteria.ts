@@ -103,6 +103,32 @@ export const CRITERION_BY_ID: Record<CriterionId, DoraCriterion> = Object.fromEn
 ) as Record<CriterionId, DoraCriterion>;
 
 /**
+ * Datenschutzdimensionen für das Kriterium "Datenverluste". Eine strukturierte
+ * Auswahl statt Freitext, damit nur eine tatsächliche Beeinträchtigung die
+ * Materialitätsschwelle auslöst – nicht eine beliebige Dokumentationsnotiz.
+ */
+export const DATA_LOSS_DIMENSIONS = [
+  { id: "availability", label: "Verfügbarkeit" },
+  { id: "integrity", label: "Integrität" },
+  { id: "authenticity", label: "Authentizität" },
+  { id: "confidentiality", label: "Vertraulichkeit" },
+] as const;
+
+export type DataLossDimension = (typeof DATA_LOSS_DIMENSIONS)[number]["id"];
+
+/**
+ * Stufen der Reputationsauswirkung. Nur "significant" (erheblich) erreicht die
+ * Materialitätsschwelle.
+ */
+export const REPUTATION_LEVELS = [
+  { id: "none", label: "Keine" },
+  { id: "low", label: "Gering" },
+  { id: "significant", label: "Erheblich" },
+] as const;
+
+export type ReputationLevel = (typeof REPUTATION_LEVELS)[number]["id"];
+
+/**
  * Numerische Materialitätsschwellen für die regelbasierte (Mock-)Bewertung.
  *
  * ACHTUNG: Illustrative Werte – vor Produktiveinsatz gegen den aktuellen
@@ -113,8 +139,8 @@ export const DORA_THRESHOLDS = {
   clientsPercent: 10,
   /** Absolute Anzahl betroffener Kunden. */
   clientsAbsolute: 100_000,
-  /** Anzahl betroffener Transaktionen. */
-  transactions: 10_000,
+  /** Anteil des betroffenen täglichen Transaktionswerts in Prozent. */
+  transactionsValuePercent: 10,
   /** Gesamtdauer des Vorfalls in Stunden. */
   durationHours: 24,
   /** Ausfallzeit in Stunden. */
