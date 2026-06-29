@@ -56,7 +56,7 @@ export class MockTriageService implements TriageService {
     if (looksLikeServiceDesk && !looksLikeIncident) {
       return {
         isIncident: false,
-        recommendation: "Kein IKT-Vorfall – ServiceDesk ist verantwortlich.",
+        recommendation: "Kein IKT-bezogener Vorfall – ServiceDesk ist verantwortlich.",
         reasoning:
           "Die Beschreibung deutet auf ein Standard-Supportanliegen hin (z. B. Zugang/Hardware). [Mock-Heuristik]",
         confidence: 0.6,
@@ -67,7 +67,7 @@ export class MockTriageService implements TriageService {
       return {
         isIncident: true,
         recommendation:
-          "Möglicher IKT-Vorfall – an das Incident-Response-Team weiterleiten und Schweregrad bestimmen.",
+          "Möglicher IKT-bezogener Vorfall – an das Incident-Response-Team weiterleiten und Schweregrad bestimmen.",
         reasoning:
           "Die Beschreibung enthält Hinweise auf eine Störung oder einen sicherheitsrelevanten Vorfall. [Mock-Heuristik]",
         confidence: 0.65,

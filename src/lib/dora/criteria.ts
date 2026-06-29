@@ -85,7 +85,7 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     description:
       "Betroffenheit kritischer oder wichtiger Funktionen bzw. meldepflichtiger Aktivitäten.",
     thresholds: [
-      "Kritische oder wichtige Funktion betroffen",
+      "Kritischer oder wichtiger Dienst betroffen",
       "Erfolgreicher unbefugter Zugriff auf Netzwerk-/Informationssysteme",
     ],
   },

@@ -63,7 +63,7 @@ export default function TriagePage() {
     : result.isIncident
       ? {
           icon: AlertTriangle,
-          label: "Möglicher IKT-Vorfall",
+          label: "Möglicher IKT-bezogener Vorfall",
           bar: "bg-destructive",
           chip: "bg-destructive/10 text-destructive",
         }
@@ -76,7 +76,7 @@ export default function TriagePage() {
           }
         : {
             icon: CheckCircle2,
-            label: "Kein IKT-Vorfall",
+            label: "Kein IKT-bezogener Vorfall",
             bar: "bg-success",
             chip: "bg-success/15 text-success",
           };
@@ -86,7 +86,7 @@ export default function TriagePage() {
       <PageHeader
         step="Schritt 01"
         title="Triage"
-        desc="Erfassen Sie das mögliche Ereignis. Die Anwendung schätzt ein, ob ein IKT-Vorfall vorliegt."
+        desc="Erfassen Sie das mögliche Ereignis. Die Anwendung schätzt ein, ob ein IKT-bezogener Vorfall vorliegt."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">

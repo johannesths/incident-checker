@@ -4,7 +4,7 @@ import { DORA_CRITERIA, type CriterionId } from "@/lib/dora/criteria";
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
 
 /* ---------------------------------------------------------------------------
- * Funktion 1: Triage – Handelt es sich um einen IKT-Vorfall?
+ * Funktion 1: Triage – Handelt es sich um einen IKT-bezogenen Vorfall?
  * ------------------------------------------------------------------------- */
 
 export const triageInputSchema = z.object({
@@ -21,9 +21,9 @@ export const triageInputSchema = z.object({
 export type TriageInput = z.infer<typeof triageInputSchema>;
 
 export const triageResultSchema = z.object({
-  /** Einschätzung, ob es sich um einen IKT-Vorfall handelt. */
+  /** Einschätzung, ob es sich um einen IKT-bezogenen Vorfall handelt. */
   isIncident: z.boolean(),
-  /** Empfohlenes weiteres Vorgehen, z. B. "Kein IKT-Vorfall – ServiceDesk ist verantwortlich." */
+  /** Empfohlenes weiteres Vorgehen, z. B. "Kein IKT-bezogener Vorfall – ServiceDesk ist verantwortlich." */
   recommendation: z.string(),
   /** Begründung der Einschätzung. */
   reasoning: z.string(),

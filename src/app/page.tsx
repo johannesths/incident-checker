@@ -13,7 +13,7 @@ const STEPS = [
     step: "01",
     icon: ShieldQuestion,
     title: "Triage",
-    desc: "Liegt überhaupt ein IKT-Vorfall vor? Sie erhalten eine Einschätzung und eine Empfehlung zum weiteren Vorgehen – etwa, dass der ServiceDesk zuständig ist.",
+    desc: "Liegt überhaupt ein IKT-bezogener Vorfall vor? Sie erhalten eine Einschätzung und eine Empfehlung zum weiteren Vorgehen – etwa, dass der ServiceDesk zuständig ist.",
     accent: "from-primary to-violet-500",
   },
   {
@@ -38,7 +38,7 @@ export default function Home() {
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
           Klassifizierung von{" "}
           <span className="bg-linear-to-r from-primary to-violet-500 bg-clip-text text-transparent">
-            IKT-Vorfällen
+            IKT-bezogenen Vorfällen
           </span>
         </h1>
         <p className="mx-auto max-w-2xl text-pretty text-muted-foreground sm:text-lg">

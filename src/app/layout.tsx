@@ -17,7 +17,7 @@ import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "IKT-Vorfall – Klassifizierung",
+  title: "IKT-bezogener Vorfall – Klassifizierung",
   description:
     "Triage und DORA-Schweregradbestimmung für mögliche IKT-bezogene Vorfälle.",
 };

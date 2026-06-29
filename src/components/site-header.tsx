@@ -23,7 +23,7 @@ export function SiteHeader() {
           </span>
           <span className="flex flex-col leading-none">
             <span className="text-base font-semibold tracking-tight">
-              IKT-Vorfall
+              IKT-bezogener Vorfall
             </span>
             <span className="text-xs text-muted-foreground">
               Klassifizierung &amp; DORA
