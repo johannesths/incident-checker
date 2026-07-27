@@ -62,8 +62,11 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "duration_downtime",
     label: "Dauer und Ausfallzeit",
     description:
-      "Gesamtdauer des Vorfalls und Ausfallzeit der betroffenen IKT-Dienste.",
-    thresholds: ["Dauer > 24 Stunden", "Ausfallzeit > 2 Stunden bei kritischen Diensten"],
+      "Gesamtdauer des Vorfalls (vom Auftreten bzw. der Entdeckung bis zur Behebung, Art. 3 Abs. 1 RTS) und Ausfallzeit der betroffenen IKT-Dienste (vollständige oder teilweise Nichtverfügbarkeit, Art. 3 Abs. 2 RTS).",
+    thresholds: [
+      "Dauer > 24 Stunden (Art. 9 Abs. 3 Buchst. a)",
+      "Ausfallzeit > 2 Stunden bei IKT-Diensten, die kritische oder wichtige Funktionen unterstützen (Art. 9 Abs. 3 Buchst. b)",
+    ],
   },
   {
     id: "geographical_spread",

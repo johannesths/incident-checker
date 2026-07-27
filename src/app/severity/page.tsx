@@ -552,7 +552,10 @@ export default function SeverityPage() {
                         onChange={(e) => update("durationHours", e.target.value)}
                       />
                     </Field>
-                    <Field label="Ausfallzeit (Stunden)" htmlFor="downtimeHours">
+                    <Field
+                      label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
+                      htmlFor="downtimeHours"
+                    >
                       <Input
                         id="downtimeHours"
                         type="number"

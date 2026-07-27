@@ -81,7 +81,18 @@ export const severityInputSchema = z.object({
    * Materialitätsschwelle für sich genommen.
    */
   relevantClientsAffected: z.boolean().optional().default(false),
+  /**
+   * Gesamtdauer des Vorfalls in Stunden, gemessen vom Auftreten (bzw. der
+   * Entdeckung, falls das Auftreten unbekannt ist) bis zur Behebung
+   * (Art. 3 Abs. 1 RTS). Schätzung zulässig, solange die Behebung aussteht.
+   */
   durationHours: z.coerce.number().min(0).optional(),
+  /**
+   * Ausfallzeit in Stunden (vollständige oder teilweise Nichtverfügbarkeit,
+   * Art. 3 Abs. 2 RTS). Die 2-Stunden-Schwelle gilt nur für IKT-Dienste, die
+   * kritische oder wichtige Funktionen unterstützen (Art. 9 Abs. 3 Buchst. b
+   * RTS) – maßgeblich ist daher die Angabe zu criticalFunctionAffected.
+   */
   downtimeHours: z.coerce.number().min(0).optional(),
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
   /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit, Art. 5 RTS). */

@@ -128,12 +128,23 @@ export class MockSeverityService implements SeverityService {
               : "");
           break;
         }
-        case "duration_downtime":
+        case "duration_downtime": {
+          const duration = input.durationHours ?? 0;
+          const downtime = input.downtimeHours ?? 0;
+          // Die Ausfallzeit-Schwelle des Art. 9 Abs. 3 Buchst. b gilt nur für
+          // IKT-Dienste, die kritische oder wichtige Funktionen unterstützen
+          // (vgl. Art. 6 Buchst. a).
+          const downtimeApplies = Boolean(input.criticalFunctionAffected);
           thresholdMet =
-            (input.durationHours ?? 0) > DORA_THRESHOLDS.durationHours ||
-            (input.downtimeHours ?? 0) > DORA_THRESHOLDS.downtimeHours;
-          assessment = `Dauer: ${input.durationHours ?? 0} h, Ausfallzeit: ${input.downtimeHours ?? 0} h`;
+            duration > DORA_THRESHOLDS.durationHours ||
+            (downtimeApplies && downtime > DORA_THRESHOLDS.downtimeHours);
+          assessment =
+            `Dauer: ${duration} h, Ausfallzeit: ${downtime} h` +
+            (!downtimeApplies && downtime > DORA_THRESHOLDS.downtimeHours
+              ? " – Ausfallzeit-Schwelle nicht anwendbar, da kein IKT-Dienst kritischer/wichtiger Funktionen betroffen (Art. 9 Abs. 3 Buchst. b RTS)."
+              : "");
           break;
+        }
         case "geographical_spread":
           thresholdMet = (input.memberStatesAffected ?? 0) >= DORA_THRESHOLDS.memberStates;
           assessment = `Betroffene Mitgliedstaaten: ${input.memberStatesAffected ?? 0}`;
