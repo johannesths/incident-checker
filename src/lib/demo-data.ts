@@ -66,6 +66,7 @@ export interface SeverityScenarioData {
   downtimeHours: string;
   memberStatesAffected: string;
   dataLossDimensions: DataLossDimension[];
+  dataLossAdverseImpact: boolean;
   criticalFunctionAffected: boolean;
   regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
@@ -99,6 +100,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "6",
       memberStatesAffected: "3",
       dataLossDimensions: ["availability", "integrity"],
+      dataLossAdverseImpact: true,
       criticalFunctionAffected: true,
       regulatedServicesAffected: true,
       maliciousUnauthorizedAccess: true,
@@ -124,6 +126,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0",
       memberStatesAffected: "0",
       dataLossDimensions: ["confidentiality"],
+      dataLossAdverseImpact: false,
       criticalFunctionAffected: false,
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: true,
@@ -149,6 +152,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0",
       memberStatesAffected: "0",
       dataLossDimensions: [],
+      dataLossAdverseImpact: false,
       criticalFunctionAffected: true,
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,
@@ -174,6 +178,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0.5",
       memberStatesAffected: "0",
       dataLossDimensions: [],
+      dataLossAdverseImpact: false,
       criticalFunctionAffected: false,
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,

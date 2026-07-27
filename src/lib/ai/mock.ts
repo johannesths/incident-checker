@@ -134,10 +134,18 @@ export class MockSeverityService implements SeverityService {
           break;
         case "data_losses": {
           const dims = input.dataLossDimensions ?? [];
-          thresholdMet = dims.length > 0;
-          assessment = dims.length
-            ? `Beeinträchtigt: ${dims.map((d) => DATA_LOSS_LABEL[d]).join(", ")}`
-            : "Keine Datenverluste angegeben.";
+          const adverseImpact = Boolean(input.dataLossAdverseImpact);
+          // Art. 9 Abs. 5 Buchst. a: Beeinträchtigung allein genügt nicht –
+          // erst nachteilige Auswirkungen auf Geschäftsziele oder
+          // regulatorische Anforderungen erreichen die Schwelle.
+          thresholdMet = dims.length > 0 && adverseImpact;
+          assessment =
+            dims.length === 0
+              ? "Keine Datenbeeinträchtigung angegeben."
+              : `Beeinträchtigt: ${dims.map((d) => DATA_LOSS_LABEL[d]).join(", ")} – ` +
+                (adverseImpact
+                  ? "mit nachteiligen Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Art. 9 Abs. 5 Buchst. a erfüllt)."
+                  : "ohne nachteilige Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Schwelle nicht erreicht).");
           break;
         }
         case "critical_services": {

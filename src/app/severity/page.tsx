@@ -41,6 +41,7 @@ interface FormState {
   downtimeHours: string;
   memberStatesAffected: string;
   dataLossDimensions: DataLossDimension[];
+  dataLossAdverseImpact: boolean;
   criticalFunctionAffected: boolean;
   regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
@@ -61,6 +62,7 @@ const initial: FormState = {
   downtimeHours: "",
   memberStatesAffected: "",
   dataLossDimensions: [],
+  dataLossAdverseImpact: false,
   criticalFunctionAffected: false,
   regulatedServicesAffected: false,
   maliciousUnauthorizedAccess: false,
@@ -156,12 +158,19 @@ export default function SeverityPage() {
   }
 
   function toggleDataLoss(id: DataLossDimension) {
-    setForm((f) => ({
-      ...f,
-      dataLossDimensions: f.dataLossDimensions.includes(id)
+    setForm((f) => {
+      const dataLossDimensions = f.dataLossDimensions.includes(id)
         ? f.dataLossDimensions.filter((x) => x !== id)
-        : [...f.dataLossDimensions, id],
-    }));
+        : [...f.dataLossDimensions, id];
+      return {
+        ...f,
+        dataLossDimensions,
+        // Ohne beeinträchtigte Schutzziele ist die Zusatzfrage nach den
+        // nachteiligen Auswirkungen (Art. 9 Abs. 5 Buchst. a) gegenstandslos.
+        dataLossAdverseImpact:
+          dataLossDimensions.length > 0 ? f.dataLossAdverseImpact : false,
+      };
+    });
   }
 
   function reset() {
@@ -613,6 +622,7 @@ export default function SeverityPage() {
                           <button
                             key={d.id}
                             type="button"
+                            title={d.hint}
                             aria-pressed={active}
                             onClick={() => toggleDataLoss(d.id)}
                             className={cn(
@@ -628,9 +638,35 @@ export default function SeverityPage() {
                       })}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Betroffene Schutzziele auswählen – die Schwelle gilt als
-                      erreicht, sobald mindestens eines betroffen ist.
+                      Betroffene Schutzziele auswählen (Art. 5 RTS). Die
+                      Schwelle ist erst erreicht, wenn die Beeinträchtigung
+                      zudem nachteilige Auswirkungen auf die Geschäftsziele
+                      oder die Erfüllung regulatorischer Anforderungen hat oder
+                      haben wird (Art. 9 Abs. 5 Buchst. a RTS).
                     </p>
+                    {form.dataLossDimensions.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <button
+                          type="button"
+                          aria-pressed={form.dataLossAdverseImpact}
+                          onClick={() =>
+                            update(
+                              "dataLossAdverseImpact",
+                              !form.dataLossAdverseImpact,
+                            )
+                          }
+                          className={cn(
+                            "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                            form.dataLossAdverseImpact
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+                          )}
+                        >
+                          Nachteilige Auswirkungen auf Geschäftsziele oder
+                          regulatorische Anforderungen
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Reputationsauswirkung</Label>

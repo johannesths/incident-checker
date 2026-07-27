@@ -77,8 +77,15 @@ export const severityInputSchema = z.object({
   durationHours: z.coerce.number().min(0).optional(),
   downtimeHours: z.coerce.number().min(0).optional(),
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
-  /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit). */
+  /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit, Art. 5 RTS). */
   dataLossDimensions: z.array(z.enum(dataLossIds)).optional().default([]),
+  /**
+   * Art. 9 Abs. 5 Buchst. a RTS: Die Datenbeeinträchtigung hat oder wird
+   * nachteilige Auswirkungen auf die Umsetzung der Geschäftsziele oder die
+   * Erfüllung regulatorischer Anforderungen haben. Erst damit ist die
+   * Materialitätsschwelle "Datenverluste" erreicht.
+   */
+  dataLossAdverseImpact: z.boolean().optional().default(false),
   /**
    * Art. 6 Buchst. a RTS: IKT-Dienste oder Netzwerk- und Informationssysteme
    * betroffen, die kritische oder wichtige Funktionen unterstützen.

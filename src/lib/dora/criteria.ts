@@ -75,11 +75,11 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "data_losses",
     label: "Datenverluste",
     description:
-      "Beeinträchtigung von Verfügbarkeit, Authentizität, Integrität oder Vertraulichkeit von Daten.",
+      "Beeinträchtigung von Verfügbarkeit, Authentizität, Integrität oder Vertraulichkeit von Daten (Art. 5 RTS). Die Schwelle ist nur erreicht, wenn die Beeinträchtigung nachteilige Auswirkungen auf die Umsetzung der Geschäftsziele oder die Erfüllung regulatorischer Anforderungen hat oder haben wird (Art. 9 Abs. 5 Buchst. a).",
     thresholds: [
-      "Verlust der Datenverfügbarkeit",
-      "Beeinträchtigung von Integrität/Authentizität",
-      "Verletzung der Vertraulichkeit",
+      "Beeinträchtigung von Verfügbarkeit, Authentizität, Integrität oder Vertraulichkeit von Daten …",
+      "… mit nachteiligen Auswirkungen auf Geschäftsziele oder regulatorische Anforderungen (Art. 9 Abs. 5 Buchst. a)",
+      "Böswilliger unbefugter Zugriff mit möglichem Datenverlust (Art. 9 Abs. 5 Buchst. b) – führt über Art. 8 Abs. 1 Buchst. a unmittelbar zur Einstufung als schwerwiegend",
     ],
   },
   {
@@ -107,15 +107,34 @@ export const CRITERION_BY_ID: Record<CriterionId, DoraCriterion> = Object.fromEn
 ) as Record<CriterionId, DoraCriterion>;
 
 /**
- * Datenschutzdimensionen für das Kriterium "Datenverluste". Eine strukturierte
- * Auswahl statt Freitext, damit nur eine tatsächliche Beeinträchtigung die
- * Materialitätsschwelle auslöst – nicht eine beliebige Dokumentationsnotiz.
+ * Datenschutzdimensionen für das Kriterium "Datenverluste" (Art. 5 RTS). Eine
+ * strukturierte Auswahl statt Freitext, damit nur eine tatsächliche
+ * Beeinträchtigung die Materialitätsschwelle auslöst – nicht eine beliebige
+ * Dokumentationsnotiz. Die Schwelle erfordert zusätzlich nachteilige
+ * Auswirkungen auf Geschäftsziele oder regulatorische Anforderungen
+ * (Art. 9 Abs. 5 Buchst. a RTS).
  */
 export const DATA_LOSS_DIMENSIONS = [
-  { id: "availability", label: "Verfügbarkeit" },
-  { id: "integrity", label: "Integrität" },
-  { id: "authenticity", label: "Authentizität" },
-  { id: "confidentiality", label: "Vertraulichkeit" },
+  {
+    id: "availability",
+    label: "Verfügbarkeit",
+    hint: "Daten sind vorübergehend oder dauerhaft nicht zugänglich oder nutzbar (Art. 5 Buchst. a RTS).",
+  },
+  {
+    id: "integrity",
+    label: "Integrität",
+    hint: "Nicht autorisierte Veränderung; Daten sind unrichtig oder unvollständig (Art. 5 Buchst. c RTS).",
+  },
+  {
+    id: "authenticity",
+    label: "Authentizität",
+    hint: "Vertrauenswürdigkeit der Datenquelle ist beeinträchtigt (Art. 5 Buchst. b RTS).",
+  },
+  {
+    id: "confidentiality",
+    label: "Vertraulichkeit",
+    hint: "Zugriff durch oder Offenlegung gegenüber unbefugten Parteien oder Systemen (Art. 5 Buchst. d RTS).",
+  },
 ] as const;
 
 export type DataLossDimension = (typeof DATA_LOSS_DIMENSIONS)[number]["id"];
