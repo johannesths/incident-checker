@@ -33,7 +33,10 @@ interface FormState {
   description: string;
   clientsAffected: string;
   clientsAffectedPercent: string;
+  counterpartsAffectedPercent: string;
+  transactionsCountPercent: string;
   transactionsValuePercent: string;
+  relevantClientsAffected: boolean;
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
@@ -50,7 +53,10 @@ const initial: FormState = {
   description: "",
   clientsAffected: "",
   clientsAffectedPercent: "",
+  counterpartsAffectedPercent: "",
+  transactionsCountPercent: "",
   transactionsValuePercent: "",
+  relevantClientsAffected: false,
   durationHours: "",
   downtimeHours: "",
   memberStatesAffected: "",
@@ -458,7 +464,7 @@ export default function SeverityPage() {
                       />
                     </Field>
                     <Field
-                      label="Betroffene Kunden (%)"
+                      label="Betroffene Kunden (% der Nutzer des Dienstes)"
                       htmlFor="clientsAffectedPercent"
                     >
                       <Input
@@ -474,14 +480,44 @@ export default function SeverityPage() {
                       />
                     </Field>
                     <Field
-                      label="Betroffener Transaktionswert (% des Tagesvolumens)"
+                      label="Betroffene finanzielle Gegenparteien (%)"
+                      htmlFor="counterpartsAffectedPercent"
+                    >
+                      <Input
+                        id="counterpartsAffectedPercent"
+                        type="number"
+                        min={0}
+                        max={100}
+                        placeholder="z. B. 35"
+                        value={form.counterpartsAffectedPercent}
+                        onChange={(e) =>
+                          update("counterpartsAffectedPercent", e.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="Betroffene Transaktionen (% der tägl. Ø-Anzahl)"
+                      htmlFor="transactionsCountPercent"
+                    >
+                      <Input
+                        id="transactionsCountPercent"
+                        type="number"
+                        min={0}
+                        placeholder="z. B. 15"
+                        value={form.transactionsCountPercent}
+                        onChange={(e) =>
+                          update("transactionsCountPercent", e.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field
+                      label="Betroffener Transaktionswert (% des tägl. Ø-Werts)"
                       htmlFor="transactionsValuePercent"
                     >
                       <Input
                         id="transactionsValuePercent"
                         type="number"
                         min={0}
-                        max={100}
                         placeholder="z. B. 15"
                         value={form.transactionsValuePercent}
                         onChange={(e) =>
@@ -535,6 +571,38 @@ export default function SeverityPage() {
                         }
                       />
                     </Field>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Lassen sich tatsächliche Zahlen nicht ermitteln, sind
+                    Schätzungen auf Basis vergleichbarer Referenzzeiträume
+                    zulässig (Art. 9 Abs. 1 RTS).
+                  </p>
+                  <div className="space-y-2">
+                    <Label>Relevante Kunden oder Gegenparteien</Label>
+                    <button
+                      type="button"
+                      aria-pressed={form.relevantClientsAffected}
+                      onClick={() =>
+                        update(
+                          "relevantClientsAffected",
+                          !form.relevantClientsAffected,
+                        )
+                      }
+                      className={cn(
+                        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                        form.relevantClientsAffected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+                      )}
+                    >
+                      Als relevant identifizierte Kunden/Gegenparteien betroffen
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      Kunden oder Gegenparteien, deren Beeinträchtigung die
+                      Geschäftsziele oder die Markteffizienz berührt (Art. 1
+                      Abs. 3 RTS) – erreicht die Schwelle für sich genommen
+                      (Art. 9 Abs. 1 Buchst. f).
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Datenverluste</Label>

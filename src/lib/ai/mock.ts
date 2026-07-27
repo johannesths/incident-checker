@@ -103,12 +103,23 @@ export class MockSeverityService implements SeverityService {
         case "clients_transactions": {
           const clients = input.clientsAffected ?? 0;
           const clientsPct = input.clientsAffectedPercent ?? 0;
-          const transactionsPct = input.transactionsValuePercent ?? 0;
+          const counterpartsPct = input.counterpartsAffectedPercent ?? 0;
+          const txCountPct = input.transactionsCountPercent ?? 0;
+          const txValuePct = input.transactionsValuePercent ?? 0;
+          const relevantAffected = Boolean(input.relevantClientsAffected);
           thresholdMet =
             clientsPct > DORA_THRESHOLDS.clientsPercent ||
             clients > DORA_THRESHOLDS.clientsAbsolute ||
-            transactionsPct > DORA_THRESHOLDS.transactionsValuePercent;
-          assessment = `Betroffene Kunden: ${clients} (${clientsPct} %), betroffener Transaktionswert: ${transactionsPct} %`;
+            counterpartsPct > DORA_THRESHOLDS.counterpartsPercent ||
+            txCountPct > DORA_THRESHOLDS.transactionsCountPercent ||
+            txValuePct > DORA_THRESHOLDS.transactionsValuePercent ||
+            relevantAffected;
+          assessment =
+            `Kunden: ${clients} (${clientsPct} %), Gegenparteien: ${counterpartsPct} %, ` +
+            `Transaktionen: ${txCountPct} % (Anzahl) / ${txValuePct} % (Wert)` +
+            (relevantAffected
+              ? ", als relevant identifizierte Kunden/Gegenparteien betroffen"
+              : "");
           break;
         }
         case "duration_downtime":

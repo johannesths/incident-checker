@@ -36,11 +36,14 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "clients_transactions",
     label: "Betroffene Kunden, Gegenparteien und Transaktionen",
     description:
-      "Anzahl und Anteil betroffener Kunden bzw. finanzieller Gegenparteien sowie betroffener Transaktionen und deren Wert.",
+      "Anzahl und Anteil betroffener Kunden und finanzieller Gegenparteien sowie Anzahl und Wert betroffener Transaktionen (Art. 1, Art. 9 Abs. 1 RTS). Die Schwelle ist erreicht, sobald eine der Bedingungen erfüllt ist.",
     thresholds: [
-      "> 10 % aller Kunden betroffen",
-      "> 100.000 betroffene Kunden",
-      "> 10 % des täglichen Transaktionswerts betroffen",
+      "> 10 % aller Kunden, die den betroffenen Dienst nutzen (Buchst. a)",
+      "> 100.000 betroffene Kunden (Buchst. b)",
+      "> 30 % aller finanziellen Gegenparteien mit Tätigkeiten im Zusammenhang mit dem betroffenen Dienst (Buchst. c)",
+      "> 10 % der durchschnittlichen täglichen Transaktionsanzahl des betroffenen Dienstes (Buchst. d)",
+      "> 10 % des durchschnittlichen täglichen Transaktionswerts des betroffenen Dienstes (Buchst. e)",
+      "Als relevant identifizierte Kunden oder Gegenparteien betroffen (Art. 1 Abs. 3, Buchst. f)",
     ],
   },
   {
@@ -136,11 +139,15 @@ export type ReputationLevel = (typeof REPUTATION_LEVELS)[number]["id"];
  * DORA-RTS (Delegierte VO (EU) 2024/1772) zu verifizieren.
  */
 export const DORA_THRESHOLDS = {
-  /** Anteil betroffener Kunden in Prozent. */
+  /** Anteil betroffener Kunden in Prozent der Nutzer des betroffenen Dienstes. */
   clientsPercent: 10,
   /** Absolute Anzahl betroffener Kunden. */
   clientsAbsolute: 100_000,
-  /** Anteil des betroffenen täglichen Transaktionswerts in Prozent. */
+  /** Anteil betroffener finanzieller Gegenparteien in Prozent. */
+  counterpartsPercent: 30,
+  /** Anteil der betroffenen Transaktionen an der durchschnittlichen täglichen Transaktionsanzahl in Prozent. */
+  transactionsCountPercent: 10,
+  /** Anteil des betroffenen Transaktionswerts am durchschnittlichen täglichen Transaktionswert in Prozent. */
   transactionsValuePercent: 10,
   /** Gesamtdauer des Vorfalls in Stunden. */
   durationHours: 24,

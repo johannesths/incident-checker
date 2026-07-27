@@ -50,12 +50,30 @@ export type TriageResult = z.infer<typeof triageResultSchema>;
 export const severityInputSchema = z.object({
   /** Verweis/Zusammenfassung des Vorfalls (z. B. aus der Triage übernommen). */
   description: z.string().min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
-  /** Anzahl betroffener Kunden (absolut). */
+  /** Anzahl betroffener Kunden (absolut, Art. 9 Abs. 1 Buchst. b RTS). */
   clientsAffected: z.coerce.number().min(0).optional(),
-  /** Anteil betroffener Kunden in Prozent. */
+  /** Anteil betroffener Kunden in Prozent der Nutzer des betroffenen Dienstes (Buchst. a). */
   clientsAffectedPercent: z.coerce.number().min(0).max(100).optional(),
-  /** Anteil des betroffenen täglichen Transaktionswerts in Prozent. */
-  transactionsValuePercent: z.coerce.number().min(0).max(100).optional(),
+  /** Anteil betroffener finanzieller Gegenparteien in Prozent (Buchst. c). */
+  counterpartsAffectedPercent: z.coerce.number().min(0).max(100).optional(),
+  /**
+   * Anteil der betroffenen Transaktionen an der durchschnittlichen täglichen
+   * Transaktionsanzahl in Prozent (Buchst. d). Kann bei mehrtägigen Vorfällen
+   * 100 % übersteigen.
+   */
+  transactionsCountPercent: z.coerce.number().min(0).optional(),
+  /**
+   * Anteil des betroffenen Transaktionswerts am durchschnittlichen täglichen
+   * Transaktionswert in Prozent (Buchst. e). Kann bei mehrtägigen Vorfällen
+   * 100 % übersteigen.
+   */
+  transactionsValuePercent: z.coerce.number().min(0).optional(),
+  /**
+   * Als relevant identifizierte Kunden oder finanzielle Gegenparteien betroffen
+   * (Art. 1 Abs. 3, Art. 9 Abs. 1 Buchst. f RTS). Erreicht die
+   * Materialitätsschwelle für sich genommen.
+   */
+  relevantClientsAffected: z.boolean().optional().default(false),
   durationHours: z.coerce.number().min(0).optional(),
   downtimeHours: z.coerce.number().min(0).optional(),
   memberStatesAffected: z.coerce.number().int().min(0).optional(),

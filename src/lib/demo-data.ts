@@ -58,7 +58,10 @@ export interface SeverityScenarioData {
   description: string;
   clientsAffected: string;
   clientsAffectedPercent: string;
+  counterpartsAffectedPercent: string;
+  transactionsCountPercent: string;
   transactionsValuePercent: string;
+  relevantClientsAffected: boolean;
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
@@ -88,7 +91,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Ausfall des Online-Bankings durch Ransomware. Kunden können keine Überweisungen tätigen.",
       clientsAffected: "120000",
       clientsAffectedPercent: "20",
+      counterpartsAffectedPercent: "35",
+      transactionsCountPercent: "30",
       transactionsValuePercent: "25",
+      relevantClientsAffected: false,
       durationHours: "30",
       downtimeHours: "6",
       memberStatesAffected: "3",
@@ -110,7 +116,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Böswilliger unbefugter Zugriff auf ein internes Auswertungssystem mit möglichem Datenverlust; keine kritische oder wichtige Funktion und keine regulierte Finanzdienstleistung unmittelbar beeinträchtigt.",
       clientsAffected: "",
       clientsAffectedPercent: "",
+      counterpartsAffectedPercent: "",
+      transactionsCountPercent: "",
       transactionsValuePercent: "",
+      relevantClientsAffected: false,
       durationHours: "2",
       downtimeHours: "0",
       memberStatesAffected: "0",
@@ -132,7 +141,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Kritische Funktion betroffen, aber nur ein weiteres Kriterium erreicht die Schwelle.",
       clientsAffected: "",
       clientsAffectedPercent: "15",
+      counterpartsAffectedPercent: "",
+      transactionsCountPercent: "",
       transactionsValuePercent: "",
+      relevantClientsAffected: false,
       durationHours: "1",
       downtimeHours: "0",
       memberStatesAffected: "0",
@@ -154,7 +166,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
         "Kurzzeitige Verzögerung im internen Reporting, keine Kundenauswirkung.",
       clientsAffected: "",
       clientsAffectedPercent: "",
+      counterpartsAffectedPercent: "",
+      transactionsCountPercent: "",
       transactionsValuePercent: "",
+      relevantClientsAffected: false,
       durationHours: "1",
       downtimeHours: "0.5",
       memberStatesAffected: "0",
