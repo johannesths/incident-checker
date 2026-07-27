@@ -23,8 +23,10 @@ import {
   CRITERION_BY_ID,
   DATA_LOSS_DIMENSIONS,
   REPUTATION_CONDITIONS,
+  GEO_IMPACT_AREAS,
   type DataLossDimension,
   type ReputationCondition,
+  type GeoImpactArea,
 } from "@/lib/dora/criteria";
 import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
 import type { SeverityResult } from "@/lib/schemas";
@@ -40,6 +42,7 @@ interface FormState {
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
+  geoImpactAreas: GeoImpactArea[];
   dataLossDimensions: DataLossDimension[];
   dataLossAdverseImpact: boolean;
   criticalFunctionAffected: boolean;
@@ -61,6 +64,7 @@ const initial: FormState = {
   durationHours: "",
   downtimeHours: "",
   memberStatesAffected: "",
+  geoImpactAreas: [],
   dataLossDimensions: [],
   dataLossAdverseImpact: false,
   criticalFunctionAffected: false,
@@ -155,6 +159,15 @@ export default function SeverityPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function toggleGeoArea(id: GeoImpactArea) {
+    setForm((f) => ({
+      ...f,
+      geoImpactAreas: f.geoImpactAreas.includes(id)
+        ? f.geoImpactAreas.filter((x) => x !== id)
+        : [...f.geoImpactAreas, id],
+    }));
   }
 
   function toggleReputation(id: ReputationCondition) {
@@ -573,9 +586,17 @@ export default function SeverityPage() {
                         type="number"
                         min={0}
                         value={form.memberStatesAffected}
-                        onChange={(e) =>
-                          update("memberStatesAffected", e.target.value)
-                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setForm((f) => ({
+                            ...f,
+                            memberStatesAffected: value,
+                            // Unter zwei Mitgliedstaaten ist die Zusatzfrage
+                            // nach der Erheblichkeit (Art. 4) gegenstandslos.
+                            geoImpactAreas:
+                              Number(value) >= 2 ? f.geoImpactAreas : [],
+                          }));
+                        }}
                       />
                     </Field>
                     <Field
@@ -598,6 +619,40 @@ export default function SeverityPage() {
                     Schätzungen auf Basis vergleichbarer Referenzzeiträume
                     zulässig (Art. 9 Abs. 1 RTS).
                   </p>
+                  {Number(form.memberStatesAffected) >= 2 && (
+                    <div className="space-y-2">
+                      <Label>Grenzüberschreitende Auswirkungen</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {GEO_IMPACT_AREAS.map((a) => {
+                          const active = form.geoImpactAreas.includes(a.id);
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              title={a.hint}
+                              aria-pressed={active}
+                              onClick={() => toggleGeoArea(a.id)}
+                              className={cn(
+                                "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                                active
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+                              )}
+                            >
+                              {a.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Bereiche mit erheblichen Auswirkungen in anderen
+                        Mitgliedstaaten auswählen (Art. 4 Buchst. a–c RTS). Die
+                        Schwelle „Geografische Ausbreitung“ ist nur erreicht,
+                        wenn neben ≥ 2 betroffenen Mitgliedstaaten mindestens
+                        ein Bereich erheblich betroffen ist (Art. 9 Abs. 4 RTS).
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Relevante Kunden oder Gegenparteien</Label>
                     <button

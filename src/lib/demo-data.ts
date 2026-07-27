@@ -1,5 +1,9 @@
 import type { TriageInput } from "@/lib/schemas";
-import type { DataLossDimension, ReputationCondition } from "@/lib/dora/criteria";
+import type {
+  DataLossDimension,
+  GeoImpactArea,
+  ReputationCondition,
+} from "@/lib/dora/criteria";
 
 /**
  * Beispiel-Szenarien zum Vorführen des Tools ohne echte Eingaben.
@@ -65,6 +69,7 @@ export interface SeverityScenarioData {
   durationHours: string;
   downtimeHours: string;
   memberStatesAffected: string;
+  geoImpactAreas: GeoImpactArea[];
   dataLossDimensions: DataLossDimension[];
   dataLossAdverseImpact: boolean;
   criticalFunctionAffected: boolean;
@@ -99,6 +104,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       durationHours: "30",
       downtimeHours: "6",
       memberStatesAffected: "3",
+      geoImpactAreas: ["clients_counterparts", "group_branches"],
       dataLossDimensions: ["availability", "integrity"],
       dataLossAdverseImpact: true,
       criticalFunctionAffected: true,
@@ -125,6 +131,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       durationHours: "2",
       downtimeHours: "0",
       memberStatesAffected: "0",
+      geoImpactAreas: [],
       dataLossDimensions: ["confidentiality"],
       dataLossAdverseImpact: false,
       criticalFunctionAffected: false,
@@ -151,6 +158,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       durationHours: "1",
       downtimeHours: "0",
       memberStatesAffected: "0",
+      geoImpactAreas: [],
       dataLossDimensions: [],
       dataLossAdverseImpact: false,
       criticalFunctionAffected: true,
@@ -177,6 +185,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       durationHours: "1",
       downtimeHours: "0.5",
       memberStatesAffected: "0",
+      geoImpactAreas: [],
       dataLossDimensions: [],
       dataLossAdverseImpact: false,
       criticalFunctionAffected: false,

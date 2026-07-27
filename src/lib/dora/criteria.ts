@@ -72,8 +72,11 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "geographical_spread",
     label: "Geografische Ausbreitung",
     description:
-      "Anzahl der betroffenen Mitgliedstaaten, insbesondere Auswirkungen in mehr als einem Mitgliedstaat.",
-    thresholds: ["Auswirkungen in ≥ 2 Mitgliedstaaten"],
+      "Auswirkungen des Vorfalls in anderen Mitgliedstaaten, insbesondere die Erheblichkeit der Auswirkungen auf Kunden und Gegenparteien, Zweigniederlassungen bzw. Gruppenunternehmen sowie Finanzmarktinfrastrukturen und Drittdienstleister dort (Art. 4 RTS).",
+    thresholds: [
+      "Auswirkungen in ≥ 2 Mitgliedstaaten (Art. 9 Abs. 4) …",
+      "… unter Berücksichtigung der Erheblichkeit der Auswirkungen auf Kunden/Gegenparteien, Zweigniederlassungen bzw. Gruppenunternehmen oder Marktinfrastrukturen/Drittdienstleister in anderen Mitgliedstaaten (Art. 4 Buchst. a–c)",
+    ],
   },
   {
     id: "data_losses",
@@ -174,6 +177,32 @@ export const REPUTATION_CONDITIONS = [
 ] as const;
 
 export type ReputationCondition = (typeof REPUTATION_CONDITIONS)[number]["id"];
+
+/**
+ * Bereiche, auf die sich die Erheblichkeit grenzüberschreitender Auswirkungen
+ * bezieht (Art. 4 Buchst. a–c RTS). Die Materialitätsschwelle "Geografische
+ * Ausbreitung" setzt Auswirkungen in mindestens zwei Mitgliedstaaten nach
+ * Maßgabe des Art. 4 voraus (Art. 9 Abs. 4 RTS).
+ */
+export const GEO_IMPACT_AREAS = [
+  {
+    id: "clients_counterparts",
+    label: "Kunden/Gegenparteien",
+    hint: "Erhebliche Auswirkungen auf Kunden und finanzielle Gegenparteien in anderen Mitgliedstaaten (Art. 4 Buchst. a RTS).",
+  },
+  {
+    id: "group_branches",
+    label: "Zweigniederlassungen/Gruppe",
+    hint: "Zweigniederlassungen oder andere Finanzunternehmen der Gruppe, die in anderen Mitgliedstaaten tätig sind (Art. 4 Buchst. b RTS).",
+  },
+  {
+    id: "fmi_third_parties",
+    label: "Marktinfrastrukturen/Drittdienstleister",
+    hint: "Finanzmarktinfrastrukturen oder Drittdienstleister, die Finanzunternehmen in anderen Mitgliedstaaten bedienen können – soweit Informationen verfügbar (Art. 4 Buchst. c RTS).",
+  },
+] as const;
+
+export type GeoImpactArea = (typeof GEO_IMPACT_AREAS)[number]["id"];
 
 /**
  * Numerische Materialitätsschwellen für die regelbasierte (Mock-)Bewertung.

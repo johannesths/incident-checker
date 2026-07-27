@@ -3,9 +3,11 @@ import {
   DORA_CRITERIA,
   DATA_LOSS_DIMENSIONS,
   REPUTATION_CONDITIONS,
+  GEO_IMPACT_AREAS,
   type CriterionId,
   type DataLossDimension,
   type ReputationCondition,
+  type GeoImpactArea,
 } from "@/lib/dora/criteria";
 
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
@@ -18,6 +20,11 @@ const dataLossIds = DATA_LOSS_DIMENSIONS.map((d) => d.id) as [
 const reputationIds = REPUTATION_CONDITIONS.map((c) => c.id) as [
   ReputationCondition,
   ...ReputationCondition[],
+];
+
+const geoImpactIds = GEO_IMPACT_AREAS.map((a) => a.id) as [
+  GeoImpactArea,
+  ...GeoImpactArea[],
 ];
 
 /* ---------------------------------------------------------------------------
@@ -94,7 +101,15 @@ export const severityInputSchema = z.object({
    * RTS) – maßgeblich ist daher die Angabe zu criticalFunctionAffected.
    */
   downtimeHours: z.coerce.number().min(0).optional(),
+  /** Anzahl der Mitgliedstaaten, in denen der Vorfall Auswirkungen hat (Art. 9 Abs. 4 RTS). */
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
+  /**
+   * Bereiche mit erheblichen Auswirkungen in anderen Mitgliedstaaten
+   * (Art. 4 Buchst. a–c RTS). Die Schwelle "Geografische Ausbreitung" ist nur
+   * erreicht, wenn neben ≥ 2 betroffenen Mitgliedstaaten mindestens ein
+   * Bereich erheblich betroffen ist.
+   */
+  geoImpactAreas: z.array(z.enum(geoImpactIds)).optional().default([]),
   /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit, Art. 5 RTS). */
   dataLossDimensions: z.array(z.enum(dataLossIds)).optional().default([]),
   /**

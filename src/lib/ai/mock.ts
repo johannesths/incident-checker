@@ -3,8 +3,10 @@ import {
   DORA_THRESHOLDS,
   DATA_LOSS_DIMENSIONS,
   REPUTATION_CONDITIONS,
+  GEO_IMPACT_AREAS,
   type DataLossDimension,
   type ReputationCondition,
+  type GeoImpactArea,
 } from "@/lib/dora/criteria";
 import type {
   TriageInput,
@@ -61,6 +63,10 @@ const DATA_LOSS_LABEL = Object.fromEntries(
 const REPUTATION_LABEL = Object.fromEntries(
   REPUTATION_CONDITIONS.map((c) => [c.id, c.label]),
 ) as Record<ReputationCondition, string>;
+
+const GEO_AREA_LABEL = Object.fromEntries(
+  GEO_IMPACT_AREAS.map((a) => [a.id, a.label]),
+) as Record<GeoImpactArea, string>;
 
 export class MockTriageService implements TriageService {
   async classify(input: TriageInput): Promise<TriageResult> {
@@ -145,10 +151,24 @@ export class MockSeverityService implements SeverityService {
               : "");
           break;
         }
-        case "geographical_spread":
-          thresholdMet = (input.memberStatesAffected ?? 0) >= DORA_THRESHOLDS.memberStates;
-          assessment = `Betroffene Mitgliedstaaten: ${input.memberStatesAffected ?? 0}`;
+        case "geographical_spread": {
+          const states = input.memberStatesAffected ?? 0;
+          const areas = input.geoImpactAreas ?? [];
+          const countMet = states >= DORA_THRESHOLDS.memberStates;
+          // Art. 9 Abs. 4 verlangt Auswirkungen in ≥ 2 Mitgliedstaaten "nach
+          // Maßgabe des Art. 4" – also erhebliche Auswirkungen auf mindestens
+          // einen der dort genannten Bereiche.
+          thresholdMet = countMet && areas.length > 0;
+          assessment =
+            `Betroffene Mitgliedstaaten: ${states}` +
+            (areas.length
+              ? `, erhebliche Auswirkungen auf: ${areas.map((a) => GEO_AREA_LABEL[a]).join(", ")}`
+              : "") +
+            (countMet && areas.length === 0
+              ? " – Schwelle nicht erreicht, da keine erheblichen Auswirkungen in anderen Mitgliedstaaten angegeben (Art. 4 RTS)."
+              : "");
           break;
+        }
         case "data_losses": {
           const dims = input.dataLossDimensions ?? [];
           const adverseImpact = Boolean(input.dataLossAdverseImpact);
