@@ -2,7 +2,9 @@ import {
   DORA_CRITERIA,
   DORA_THRESHOLDS,
   DATA_LOSS_DIMENSIONS,
+  REPUTATION_CONDITIONS,
   type DataLossDimension,
+  type ReputationCondition,
 } from "@/lib/dora/criteria";
 import type {
   TriageInput,
@@ -55,6 +57,10 @@ function includesAny(haystack: string, needles: string[]): boolean {
 const DATA_LOSS_LABEL = Object.fromEntries(
   DATA_LOSS_DIMENSIONS.map((d) => [d.id, d.label]),
 ) as Record<DataLossDimension, string>;
+
+const REPUTATION_LABEL = Object.fromEntries(
+  REPUTATION_CONDITIONS.map((c) => [c.id, c.label]),
+) as Record<ReputationCondition, string>;
 
 export class MockTriageService implements TriageService {
   async classify(input: TriageInput): Promise<TriageResult> {
@@ -168,14 +174,13 @@ export class MockSeverityService implements SeverityService {
           assessment = `Geschätzte Kosten/Verluste: ${input.economicImpactEur ?? 0} EUR`;
           break;
         case "reputational_impact": {
-          const level = input.reputationalImpactLevel ?? "none";
-          thresholdMet = level === "significant";
-          assessment =
-            level === "significant"
-              ? "Erhebliche Reputationsauswirkung."
-              : level === "low"
-                ? "Geringe Reputationsauswirkung."
-                : "Keine Reputationsauswirkung angegeben.";
+          const conditions = input.reputationalImpactConditions ?? [];
+          // Art. 9 Abs. 2: Schwelle erreicht, sobald eine Bedingung des
+          // Art. 2 Abs. 1 Buchst. a–d erfüllt ist.
+          thresholdMet = conditions.length > 0;
+          assessment = conditions.length
+            ? `Erfüllt: ${conditions.map((c) => REPUTATION_LABEL[c]).join(", ")} (Art. 2 Abs. 1 RTS).`
+            : "Keine Bedingung des Art. 2 Abs. 1 RTS als erfüllt markiert.";
           break;
         }
       }

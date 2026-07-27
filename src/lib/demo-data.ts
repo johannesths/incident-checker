@@ -1,5 +1,5 @@
 import type { TriageInput } from "@/lib/schemas";
-import type { DataLossDimension, ReputationLevel } from "@/lib/dora/criteria";
+import type { DataLossDimension, ReputationCondition } from "@/lib/dora/criteria";
 
 /**
  * Beispiel-Szenarien zum Vorführen des Tools ohne echte Eingaben.
@@ -71,7 +71,7 @@ export interface SeverityScenarioData {
   regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
   maliciousAccessDataLossPossible: boolean;
-  reputationalImpactLevel: ReputationLevel;
+  reputationalImpactConditions: ReputationCondition[];
   economicImpactEur: string;
 }
 
@@ -105,7 +105,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       regulatedServicesAffected: true,
       maliciousUnauthorizedAccess: true,
       maliciousAccessDataLossPossible: true,
-      reputationalImpactLevel: "significant",
+      reputationalImpactConditions: ["media_coverage", "repeated_complaints"],
       economicImpactEur: "750000",
     },
   },
@@ -131,7 +131,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: true,
       maliciousAccessDataLossPossible: true,
-      reputationalImpactLevel: "none",
+      reputationalImpactConditions: [],
       economicImpactEur: "0",
     },
   },
@@ -157,7 +157,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,
       maliciousAccessDataLossPossible: false,
-      reputationalImpactLevel: "none",
+      reputationalImpactConditions: [],
       economicImpactEur: "0",
     },
   },
@@ -183,7 +183,7 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,
       maliciousAccessDataLossPossible: false,
-      reputationalImpactLevel: "none",
+      reputationalImpactConditions: [],
       economicImpactEur: "0",
     },
   },

@@ -2,8 +2,10 @@ import { z } from "zod";
 import {
   DORA_CRITERIA,
   DATA_LOSS_DIMENSIONS,
+  REPUTATION_CONDITIONS,
   type CriterionId,
   type DataLossDimension,
+  type ReputationCondition,
 } from "@/lib/dora/criteria";
 
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
@@ -11,6 +13,11 @@ const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...Criterio
 const dataLossIds = DATA_LOSS_DIMENSIONS.map((d) => d.id) as [
   DataLossDimension,
   ...DataLossDimension[],
+];
+
+const reputationIds = REPUTATION_CONDITIONS.map((c) => c.id) as [
+  ReputationCondition,
+  ...ReputationCondition[],
 ];
 
 /* ---------------------------------------------------------------------------
@@ -108,11 +115,15 @@ export const severityInputSchema = z.object({
    * schwerwiegend (Art. 8 Abs. 1 Buchst. a RTS).
    */
   maliciousAccessDataLossPossible: z.boolean().optional().default(false),
-  /** Stufe der Reputationsauswirkung – nur "significant" erreicht die Schwelle. */
-  reputationalImpactLevel: z
-    .enum(["none", "low", "significant"])
+  /**
+   * Erfüllte Bedingungen der Reputationsauswirkung (Art. 2 Abs. 1 Buchst. a–d
+   * RTS). Die Schwelle ist erreicht, sobald mindestens eine Bedingung erfüllt
+   * ist (Art. 9 Abs. 2 RTS).
+   */
+  reputationalImpactConditions: z
+    .array(z.enum(reputationIds))
     .optional()
-    .default("none"),
+    .default([]),
   economicImpactEur: z.coerce.number().min(0).optional(),
 });
 

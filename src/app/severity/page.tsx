@@ -22,9 +22,9 @@ import { cn } from "@/lib/utils";
 import {
   CRITERION_BY_ID,
   DATA_LOSS_DIMENSIONS,
-  REPUTATION_LEVELS,
+  REPUTATION_CONDITIONS,
   type DataLossDimension,
-  type ReputationLevel,
+  type ReputationCondition,
 } from "@/lib/dora/criteria";
 import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
 import type { SeverityResult } from "@/lib/schemas";
@@ -46,7 +46,7 @@ interface FormState {
   regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
   maliciousAccessDataLossPossible: boolean;
-  reputationalImpactLevel: ReputationLevel;
+  reputationalImpactConditions: ReputationCondition[];
   economicImpactEur: string;
 }
 
@@ -67,7 +67,7 @@ const initial: FormState = {
   regulatedServicesAffected: false,
   maliciousUnauthorizedAccess: false,
   maliciousAccessDataLossPossible: false,
-  reputationalImpactLevel: "none",
+  reputationalImpactConditions: [],
   economicImpactEur: "",
 };
 
@@ -155,6 +155,15 @@ export default function SeverityPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function toggleReputation(id: ReputationCondition) {
+    setForm((f) => ({
+      ...f,
+      reputationalImpactConditions: f.reputationalImpactConditions.includes(id)
+        ? f.reputationalImpactConditions.filter((x) => x !== id)
+        : [...f.reputationalImpactConditions, id],
+    }));
   }
 
   function toggleDataLoss(id: DataLossDimension) {
@@ -670,21 +679,35 @@ export default function SeverityPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Reputationsauswirkung</Label>
-                    <div className="flex gap-2">
-                      {REPUTATION_LEVELS.map((l) => (
-                        <ChoiceButton
-                          key={l.id}
-                          selected={form.reputationalImpactLevel === l.id}
-                          onClick={() =>
-                            update("reputationalImpactLevel", l.id)
-                          }
-                        >
-                          {l.label}
-                        </ChoiceButton>
-                      ))}
+                    <div className="flex flex-wrap gap-2">
+                      {REPUTATION_CONDITIONS.map((c) => {
+                        const active =
+                          form.reputationalImpactConditions.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            title={c.hint}
+                            aria-pressed={active}
+                            onClick={() => toggleReputation(c.id)}
+                            className={cn(
+                              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                              active
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+                            )}
+                          >
+                            {c.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Nur „Erheblich“ erreicht die Materialitätsschwelle.
+                      Erfüllte Bedingungen des Art. 2 Abs. 1 RTS auswählen – die
+                      Schwelle ist erreicht, sobald mindestens eine Bedingung
+                      erfüllt ist (Art. 9 Abs. 2 RTS). Berücksichtigen Sie die
+                      bereits erlangte oder zu erwartende Sichtbarkeit des
+                      Vorfalls (Art. 2 Abs. 2 RTS).
                     </p>
                   </div>
                   <Button

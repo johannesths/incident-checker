@@ -50,11 +50,12 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "reputational_impact",
     label: "Reputationsauswirkung",
     description:
-      "Sichtbarkeit des Vorfalls in den Medien, Beschwerden von Kunden/Gegenparteien, mögliche Verstöße gegen regulatorische Pflichten.",
+      "Erfüllt, sobald eine der vier Bedingungen des Art. 2 Abs. 1 RTS vorliegt (Art. 9 Abs. 2). Die bereits erlangte oder zu erwartende Sichtbarkeit des Vorfalls ist dabei zu berücksichtigen (Art. 2 Abs. 2).",
     thresholds: [
-      "Medienberichterstattung",
-      "Wiederholte Beschwerden zentraler Kunden/Gegenparteien",
-      "Nichterfüllung regulatorischer Anforderungen droht",
+      "Der Vorfall hat sich in den Medien niedergeschlagen (Buchst. a)",
+      "Wiederholte Beschwerden verschiedener Kunden oder Gegenparteien zu kundenorientierten Diensten oder kritischen Geschäftsbeziehungen (Buchst. b)",
+      "Regulatorische Anforderungen können infolge des Vorfalls (voraussichtlich) nicht erfüllt werden (Buchst. c)",
+      "(Voraussichtlicher) Verlust von Kunden oder Gegenparteien mit wesentlichen Auswirkungen auf das Geschäft (Buchst. d)",
     ],
   },
   {
@@ -140,16 +141,36 @@ export const DATA_LOSS_DIMENSIONS = [
 export type DataLossDimension = (typeof DATA_LOSS_DIMENSIONS)[number]["id"];
 
 /**
- * Stufen der Reputationsauswirkung. Nur "significant" (erheblich) erreicht die
- * Materialitätsschwelle.
+ * Bedingungen der Reputationsauswirkung (Art. 2 Abs. 1 Buchst. a–d RTS).
+ * Die Materialitätsschwelle ist erreicht, sobald mindestens eine Bedingung
+ * erfüllt ist (Art. 9 Abs. 2 RTS). Die bereits erlangte oder zu erwartende
+ * Sichtbarkeit des Vorfalls ist je Bedingung zu berücksichtigen
+ * (Art. 2 Abs. 2 RTS).
  */
-export const REPUTATION_LEVELS = [
-  { id: "none", label: "Keine" },
-  { id: "low", label: "Gering" },
-  { id: "significant", label: "Erheblich" },
+export const REPUTATION_CONDITIONS = [
+  {
+    id: "media_coverage",
+    label: "Medienberichterstattung",
+    hint: "Der Vorfall hat sich in den Medien niedergeschlagen (Art. 2 Abs. 1 Buchst. a RTS).",
+  },
+  {
+    id: "repeated_complaints",
+    label: "Wiederholte Beschwerden",
+    hint: "Wiederholte Beschwerden verschiedener Kunden oder Gegenparteien zu kundenorientierten Diensten oder kritischen Geschäftsbeziehungen (Art. 2 Abs. 1 Buchst. b RTS).",
+  },
+  {
+    id: "regulatory_shortfall",
+    label: "Regulatorische Anforderungen",
+    hint: "Das Finanzunternehmen wird infolge des Vorfalls regulatorische Anforderungen (voraussichtlich) nicht erfüllen können (Art. 2 Abs. 1 Buchst. c RTS).",
+  },
+  {
+    id: "client_loss",
+    label: "Kunden-/Gegenparteienverlust",
+    hint: "Das Finanzunternehmen wird infolge des Vorfalls (voraussichtlich) Kunden oder Gegenparteien mit wesentlichen Auswirkungen auf sein Geschäft verlieren (Art. 2 Abs. 1 Buchst. d RTS).",
+  },
 ] as const;
 
-export type ReputationLevel = (typeof REPUTATION_LEVELS)[number]["id"];
+export type ReputationCondition = (typeof REPUTATION_CONDITIONS)[number]["id"];
 
 /**
  * Numerische Materialitätsschwellen für die regelbasierte (Mock-)Bewertung.
