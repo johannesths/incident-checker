@@ -129,12 +129,21 @@ export class MockSeverityService implements SeverityService {
             : "Keine Datenverluste angegeben.";
           break;
         }
-        case "critical_services":
-          thresholdMet = Boolean(input.criticalServicesAffected);
-          assessment = input.criticalServicesAffected
-            ? "Kritische/wichtige Funktion betroffen."
-            : "Keine kritische Funktion als betroffen markiert.";
+        case "critical_services": {
+          const conditions = [
+            input.criticalFunctionAffected &&
+              "kritische/wichtige Funktion betroffen (Buchst. a)",
+            input.regulatedServicesAffected &&
+              "regulierte Finanzdienstleistung betroffen (Buchst. b)",
+            input.maliciousUnauthorizedAccess &&
+              "erfolgreicher böswilliger unbefugter Zugriff (Buchst. c)",
+          ].filter((c): c is string => Boolean(c));
+          thresholdMet = conditions.length > 0;
+          assessment = thresholdMet
+            ? `Art. 6 RTS erfüllt: ${conditions.join("; ")}.`
+            : "Kein Tatbestand des Art. 6 RTS als erfüllt markiert.";
           break;
+        }
         case "economic_impact":
           thresholdMet = (input.economicImpactEur ?? 0) > DORA_THRESHOLDS.economicImpactEur;
           assessment = `Geschätzte Kosten/Verluste: ${input.economicImpactEur ?? 0} EUR`;
@@ -161,33 +170,42 @@ export class MockSeverityService implements SeverityService {
       (f) => f.thresholdMet && f.criterionId !== "critical_services",
     ).length;
 
-    // Klassifizierungslogik:
-    // 1. Ohne Betroffenheit einer kritischen/wichtigen Funktion nie schwerwiegend.
-    // 2. Bei betroffener kritischer Funktion ist der Vorfall schwerwiegend, wenn
-    //    entweder ein böswilliger unbefugter Zugriff mit möglichem Datenverlust
-    //    vorliegt ODER mindestens zwei weitere Kriterien ihre Schwelle erreichen.
-    const criticalAffected = Boolean(input.criticalServicesAffected);
-    const maliciousAccess = Boolean(input.maliciousUnauthorizedAccess);
-    const major = criticalAffected && (maliciousAccess || otherMetCount >= 2);
+    // Klassifizierungslogik (Art. 8 Abs. 1 RTS):
+    // 1. Ohne erfüllten Tatbestand des Kriteriums "Kritikalität der betroffenen
+    //    Dienste" (Art. 6: kritische/wichtige Funktion, regulierte
+    //    Finanzdienstleistung oder böswilliger unbefugter Zugriff) nie
+    //    schwerwiegend.
+    // 2. Andernfalls schwerwiegend, wenn ein böswilliger unbefugter Zugriff mit
+    //    möglichem Datenverlust vorliegt (Art. 9 Abs. 5 Buchst. b, Art. 8
+    //    Abs. 1 Buchst. a) ODER mindestens zwei weitere Kriterien ihre Schwelle
+    //    erreichen (Art. 8 Abs. 1 Buchst. b).
+    const criticalityMet =
+      Boolean(input.criticalFunctionAffected) ||
+      Boolean(input.regulatedServicesAffected) ||
+      Boolean(input.maliciousUnauthorizedAccess);
+    const accessWithDataLossRisk =
+      Boolean(input.maliciousUnauthorizedAccess) &&
+      Boolean(input.maliciousAccessDataLossPossible);
+    const major = criticalityMet && (accessWithDataLossRisk || otherMetCount >= 2);
     const classification = major ? "major" : "non_major";
 
     let summary: string;
-    if (!criticalAffected) {
+    if (!criticalityMet) {
       summary =
-        "Keine kritische oder wichtige Funktion betroffen – daher kein schwerwiegender Vorfall, " +
-        `unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`;
-    } else if (maliciousAccess) {
+        "Kein Tatbestand des Kriteriums „Kritikalität der betroffenen Dienste“ (Art. 6 RTS) erfüllt – " +
+        `daher kein schwerwiegender Vorfall, unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`;
+    } else if (accessWithDataLossRisk) {
       summary =
-        "Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme mit möglichem " +
-        "Datenverlust bei betroffener kritischer Funktion – stets schwerwiegender Vorfall. [Mock]";
+        "Erfolgreicher böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme, " +
+        "der zu Datenverlusten führen kann – stets schwerwiegender Vorfall (Art. 8 Abs. 1 Buchst. a RTS). [Mock]";
     } else if (otherMetCount >= 2) {
       summary =
-        `Kritische Funktion betroffen und ${otherMetCount} weitere Kriterien erreichen ihre Schwelle ` +
-        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend. [Mock]`;
+        `Kritikalitätskriterium erfüllt und ${otherMetCount} weitere Kriterien erreichen ihre Schwelle ` +
+        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend (Art. 8 Abs. 1 Buchst. b RTS). [Mock]`;
     } else {
       summary =
-        `Kritische Funktion betroffen, jedoch erreichen weniger als zwei weitere Kriterien ihre Schwelle ` +
-        `(${otherMetCount} erreicht) und kein böswilliger Zugriff – daher kein schwerwiegender Vorfall. [Mock]`;
+        `Kritikalitätskriterium erfüllt, jedoch erreichen weniger als zwei weitere Kriterien ihre Schwelle ` +
+        `(${otherMetCount} erreicht) und kein böswilliger Zugriff mit möglichem Datenverlust – daher kein schwerwiegender Vorfall. [Mock]`;
     }
 
     return {

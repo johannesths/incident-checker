@@ -63,8 +63,10 @@ export interface SeverityScenarioData {
   downtimeHours: string;
   memberStatesAffected: string;
   dataLossDimensions: DataLossDimension[];
-  criticalServicesAffected: boolean;
+  criticalFunctionAffected: boolean;
+  regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
+  maliciousAccessDataLossPossible: boolean;
   reputationalImpactLevel: ReputationLevel;
   economicImpactEur: string;
 }
@@ -91,8 +93,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "6",
       memberStatesAffected: "3",
       dataLossDimensions: ["availability", "integrity"],
-      criticalServicesAffected: true,
+      criticalFunctionAffected: true,
+      regulatedServicesAffected: true,
       maliciousUnauthorizedAccess: true,
+      maliciousAccessDataLossPossible: true,
       reputationalImpactLevel: "significant",
       economicImpactEur: "750000",
     },
@@ -100,10 +104,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
   {
     id: "malicious-access",
     label: "Gezielter Angriff",
-    hint: "erwartet: schwerwiegend (Override)",
+    hint: "erwartet: schwerwiegend (Art. 6 Buchst. c + Art. 8 Abs. 1 Buchst. a)",
     data: {
       description:
-        "Böswilliger unbefugter Zugriff auf das Kernbankensystem mit möglichem Datenverlust, sonst geringe messbare Auswirkung.",
+        "Böswilliger unbefugter Zugriff auf ein internes Auswertungssystem mit möglichem Datenverlust; keine kritische oder wichtige Funktion und keine regulierte Finanzdienstleistung unmittelbar beeinträchtigt.",
       clientsAffected: "",
       clientsAffectedPercent: "",
       transactionsValuePercent: "",
@@ -111,8 +115,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0",
       memberStatesAffected: "0",
       dataLossDimensions: ["confidentiality"],
-      criticalServicesAffected: true,
+      criticalFunctionAffected: false,
+      regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: true,
+      maliciousAccessDataLossPossible: true,
       reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },
@@ -131,8 +137,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0",
       memberStatesAffected: "0",
       dataLossDimensions: [],
-      criticalServicesAffected: true,
+      criticalFunctionAffected: true,
+      regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,
+      maliciousAccessDataLossPossible: false,
       reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },
@@ -151,8 +159,10 @@ export const SEVERITY_SCENARIOS: SeverityScenario[] = [
       downtimeHours: "0.5",
       memberStatesAffected: "0",
       dataLossDimensions: [],
-      criticalServicesAffected: false,
+      criticalFunctionAffected: false,
+      regulatedServicesAffected: false,
       maliciousUnauthorizedAccess: false,
+      maliciousAccessDataLossPossible: false,
       reputationalImpactLevel: "none",
       economicImpactEur: "0",
     },

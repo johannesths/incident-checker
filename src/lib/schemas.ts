@@ -61,13 +61,28 @@ export const severityInputSchema = z.object({
   memberStatesAffected: z.coerce.number().int().min(0).optional(),
   /** Betroffene Datenschutzdimensionen (Verfügbarkeit/Integrität/Authentizität/Vertraulichkeit). */
   dataLossDimensions: z.array(z.enum(dataLossIds)).optional().default([]),
-  criticalServicesAffected: z.boolean().optional().default(false),
   /**
-   * Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme,
-   * der zu Datenverlusten führen kann. Erzwingt – bei betroffener kritischer
-   * Funktion – die Einstufung als schwerwiegend.
+   * Art. 6 Buchst. a RTS: IKT-Dienste oder Netzwerk- und Informationssysteme
+   * betroffen, die kritische oder wichtige Funktionen unterstützen.
+   */
+  criticalFunctionAffected: z.boolean().optional().default(false),
+  /**
+   * Art. 6 Buchst. b RTS: zulassungs- bzw. registrierungspflichtige oder von
+   * zuständigen Behörden beaufsichtigte Finanzdienstleistungen betroffen.
+   */
+  regulatedServicesAffected: z.boolean().optional().default(false),
+  /**
+   * Art. 6 Buchst. c RTS: erfolgreicher böswilliger unbefugter Zugriff auf die
+   * Netzwerk- und Informationssysteme. Erfüllt das Kritikalitätskriterium
+   * bereits für sich genommen.
    */
   maliciousUnauthorizedAccess: z.boolean().optional().default(false),
+  /**
+   * Art. 9 Abs. 5 Buchst. b RTS: der böswillige Zugriff kann zu Datenverlusten
+   * führen. Erzwingt zusammen mit Art. 6 Buchst. c die Einstufung als
+   * schwerwiegend (Art. 8 Abs. 1 Buchst. a RTS).
+   */
+  maliciousAccessDataLossPossible: z.boolean().optional().default(false),
   /** Stufe der Reputationsauswirkung – nur "significant" erreicht die Schwelle. */
   reputationalImpactLevel: z
     .enum(["none", "low", "significant"])

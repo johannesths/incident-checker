@@ -83,10 +83,11 @@ export const DORA_CRITERIA: DoraCriterion[] = [
     id: "critical_services",
     label: "Kritikalität der betroffenen Dienste",
     description:
-      "Betroffenheit kritischer oder wichtiger Funktionen bzw. meldepflichtiger Aktivitäten.",
+      "Erfüllt, wenn mindestens einer der drei Tatbestände des Art. 6 RTS vorliegt. Ohne erfülltes Kritikalitätskriterium liegt nie ein schwerwiegender Vorfall vor (Art. 8 Abs. 1 RTS).",
     thresholds: [
-      "Kritischer oder wichtiger Dienst betroffen",
-      "Erfolgreicher unbefugter Zugriff auf Netzwerk-/Informationssysteme",
+      "IKT-Dienste oder Netzwerk-/Informationssysteme betroffen, die kritische oder wichtige Funktionen unterstützen (Art. 6 Buchst. a)",
+      "Zulassungs- bzw. registrierungspflichtige oder beaufsichtigte Finanzdienstleistungen betroffen (Art. 6 Buchst. b)",
+      "Erfolgreicher böswilliger unbefugter Zugriff auf Netzwerk-/Informationssysteme (Art. 6 Buchst. c)",
     ],
   },
   {

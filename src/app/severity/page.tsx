@@ -38,8 +38,10 @@ interface FormState {
   downtimeHours: string;
   memberStatesAffected: string;
   dataLossDimensions: DataLossDimension[];
-  criticalServicesAffected: boolean;
+  criticalFunctionAffected: boolean;
+  regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
+  maliciousAccessDataLossPossible: boolean;
   reputationalImpactLevel: ReputationLevel;
   economicImpactEur: string;
 }
@@ -53,14 +55,61 @@ const initial: FormState = {
   downtimeHours: "",
   memberStatesAffected: "",
   dataLossDimensions: [],
-  criticalServicesAffected: false,
+  criticalFunctionAffected: false,
+  regulatedServicesAffected: false,
   maliciousUnauthorizedAccess: false,
+  maliciousAccessDataLossPossible: false,
   reputationalImpactLevel: "none",
   economicImpactEur: "",
 };
 
 const INSTANT_DESCRIPTION =
-  "Böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme mit möglichem Datenverlust bei betroffener kritischer Funktion.";
+  "Erfolgreicher böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme, der zu Datenverlusten führen kann.";
+
+/**
+ * Vorfragen zum Kriterium "Kritikalität der betroffenen Dienste" (Art. 6 RTS).
+ * Der Vorfall kann nur dann schwerwiegend sein, wenn mindestens ein Tatbestand
+ * erfüllt ist (Art. 8 Abs. 1 RTS).
+ */
+type GateKey =
+  | "criticalFunctionAffected"
+  | "regulatedServicesAffected"
+  | "maliciousUnauthorizedAccess";
+
+const GATE_QUESTIONS: { key: GateKey; letter: string; question: string }[] = [
+  {
+    key: "criticalFunctionAffected",
+    letter: "a",
+    question:
+      "Sind IKT-Dienste oder Netzwerk- und Informationssysteme betroffen, die kritische oder wichtige Funktionen unterstützen?",
+  },
+  {
+    key: "regulatedServicesAffected",
+    letter: "b",
+    question:
+      "Sind Finanzdienstleistungen betroffen, die zulassungs- bzw. registrierungspflichtig sind oder von zuständigen Behörden beaufsichtigt werden?",
+  },
+  {
+    key: "maliciousUnauthorizedAccess",
+    letter: "c",
+    question:
+      "Liegt ein erfolgreicher böswilliger und unbefugter Zugriff auf die Netzwerk- und Informationssysteme vor?",
+  },
+];
+
+const GATE_SUMMARY_LABEL: Record<GateKey, string> = {
+  criticalFunctionAffected: "Kritische/wichtige Funktion",
+  regulatedServicesAffected: "Regulierte Finanzdienstleistung",
+  maliciousUnauthorizedAccess: "Böswilliger Zugriff",
+};
+
+type GateAnswers = Record<GateKey, boolean | null>;
+
+const noGateAnswers: GateAnswers = {
+  criticalFunctionAffected: null,
+  regulatedServicesAffected: null,
+  maliciousUnauthorizedAccess: null,
+};
 
 const CLASSIFICATION: Record<
   SeverityResult["classification"],
@@ -90,8 +139,8 @@ type Stage = "questions" | "form";
 
 export default function SeverityPage() {
   const [stage, setStage] = useState<Stage>("questions");
-  const [criticalAnswer, setCriticalAnswer] = useState<boolean | null>(null);
-  const [maliciousAnswer, setMaliciousAnswer] = useState<boolean | null>(null);
+  const [gateAnswers, setGateAnswers] = useState<GateAnswers>(noGateAnswers);
+  const [dataLossAnswer, setDataLossAnswer] = useState<boolean | null>(null);
   const [form, setForm] = useState<FormState>(initial);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SeverityResult | null>(null);
@@ -111,8 +160,8 @@ export default function SeverityPage() {
 
   function reset() {
     setStage("questions");
-    setCriticalAnswer(null);
-    setMaliciousAnswer(null);
+    setGateAnswers(noGateAnswers);
+    setDataLossAnswer(null);
     setForm(initial);
     setResult(null);
   }
@@ -138,40 +187,67 @@ export default function SeverityPage() {
     }
   }
 
-  // Vorfrage 1: Kritische oder wichtige Funktion betroffen?
-  function answerCritical(value: boolean) {
-    setCriticalAnswer(value);
-    setMaliciousAnswer(null);
-    setResult(null);
-    setForm((f) => ({
-      ...f,
-      criticalServicesAffected: value,
-      maliciousUnauthorizedAccess: false,
-    }));
-    // Ohne kritische Funktion direkt zur ausführlichen Erfassung.
-    if (!value) setStage("form");
+  /**
+   * Sobald alle Vorfragen beantwortet sind, geht es weiter: Bei böswilligem
+   * Zugriff mit möglichem Datenverlust erfolgt die unmittelbare Einstufung als
+   * schwerwiegend (Art. 8 Abs. 1 Buchst. a RTS), andernfalls die Erfassung der
+   * übrigen Kriterien.
+   */
+  function advanceIfComplete(answers: GateAnswers, dataLoss: boolean | null) {
+    if (GATE_QUESTIONS.some((q) => answers[q.key] === null)) return;
+    if (answers.maliciousUnauthorizedAccess === true && dataLoss === null) return;
+    setStage("form");
   }
 
-  // Vorfrage 2: Böswilliger unbefugter Zugriff mit möglichem Datenverlust?
-  function answerMalicious(value: boolean) {
-    setMaliciousAnswer(value);
-    setForm((f) => ({ ...f, maliciousUnauthorizedAccess: value }));
+  // Vorfragen 1a–c: Tatbestände des Art. 6 RTS (Kritikalität der Dienste).
+  function answerGate(key: GateKey, value: boolean) {
+    const next = { ...gateAnswers, [key]: value };
+    setGateAnswers(next);
+    setResult(null);
+    const nextDataLoss =
+      key === "maliciousUnauthorizedAccess" ? null : dataLossAnswer;
+    if (key === "maliciousUnauthorizedAccess") setDataLossAnswer(null);
+    setForm((f) => ({
+      ...f,
+      [key]: value,
+      ...(key === "maliciousUnauthorizedAccess"
+        ? { maliciousAccessDataLossPossible: false }
+        : {}),
+    }));
+    advanceIfComplete(next, nextDataLoss);
+  }
+
+  // Vorfrage 2: Kann der böswillige Zugriff zu Datenverlusten führen?
+  function answerDataLoss(value: boolean) {
+    setDataLossAnswer(value);
+    setForm((f) => ({ ...f, maliciousAccessDataLossPossible: value }));
     if (value) {
-      // Unmittelbare Einstufung als schwerwiegender Vorfall.
+      // Art. 6 Buchst. c + Art. 9 Abs. 5 Buchst. b: unmittelbare Einstufung
+      // als schwerwiegend – unabhängig von den übrigen Vorfragen.
       void classify({
         description: INSTANT_DESCRIPTION,
-        criticalServicesAffected: true,
+        criticalFunctionAffected: gateAnswers.criticalFunctionAffected === true,
+        regulatedServicesAffected: gateAnswers.regulatedServicesAffected === true,
         maliciousUnauthorizedAccess: true,
+        maliciousAccessDataLossPossible: true,
       });
     } else {
-      setStage("form");
+      advanceIfComplete(gateAnswers, value);
     }
   }
 
   function loadScenario(data: FormState) {
     setForm(data);
-    setCriticalAnswer(data.criticalServicesAffected);
-    setMaliciousAnswer(data.maliciousUnauthorizedAccess);
+    setGateAnswers({
+      criticalFunctionAffected: data.criticalFunctionAffected,
+      regulatedServicesAffected: data.regulatedServicesAffected,
+      maliciousUnauthorizedAccess: data.maliciousUnauthorizedAccess,
+    });
+    setDataLossAnswer(
+      data.maliciousUnauthorizedAccess
+        ? data.maliciousAccessDataLossPossible
+        : null,
+    );
     setStage("form");
     setResult(null);
   }
@@ -185,8 +261,11 @@ export default function SeverityPage() {
   const tone = result ? CLASSIFICATION[result.classification] : null;
   const instantResult = stage === "questions" && (result !== null || loading);
   // Steht bereits durch die Vorfragen fest, dass kein schwerwiegender Vorfall
-  // vorliegt (keine kritische/wichtige Funktion betroffen)?
-  const ruledOutNonMajor = criticalAnswer === false && !result && !loading;
+  // vorliegt (kein Tatbestand des Art. 6 RTS erfüllt)?
+  const ruledOutNonMajor =
+    GATE_QUESTIONS.every((q) => gateAnswers[q.key] === false) &&
+    !result &&
+    !loading;
 
   return (
     <div className="space-y-8">
@@ -225,9 +304,9 @@ export default function SeverityPage() {
                         : "Schwerwiegender Vorfall"}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Böswilliger unbefugter Zugriff mit möglichem Datenverlust
-                      bei betroffener kritischer Funktion – unmittelbare
-                      Einstufung. Details siehe Ergebnis.
+                      Erfolgreicher böswilliger unbefugter Zugriff mit möglichem
+                      Datenverlust – unmittelbare Einstufung (Art. 8 Abs. 1
+                      Buchst. a RTS). Details siehe Ergebnis.
                     </p>
                   </div>
                 </div>
@@ -239,54 +318,65 @@ export default function SeverityPage() {
             ) : stage === "questions" ? (
               /* Vorfragen */
               <div className="space-y-6">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">
-                    1. Ist eine kritische oder wichtige Funktion betroffen?
-                  </p>
-                  <div className="flex gap-2">
-                    <ChoiceButton
-                      selected={criticalAnswer === true}
-                      onClick={() => answerCritical(true)}
-                    >
-                      Ja
-                    </ChoiceButton>
-                    <ChoiceButton
-                      selected={criticalAnswer === false}
-                      onClick={() => answerCritical(false)}
-                    >
-                      Nein
-                    </ChoiceButton>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">
+                      1. Kritikalität der betroffenen Dienste (Art. 6 RTS)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Nur wenn mindestens einer der folgenden Tatbestände
+                      erfüllt ist, kann ein schwerwiegender Vorfall vorliegen
+                      (Art. 8 Abs. 1 RTS).
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Ohne Betroffenheit einer kritischen oder wichtigen Funktion
-                    liegt nie ein schwerwiegender Vorfall vor.
-                  </p>
+                  {GATE_QUESTIONS.map((q) => (
+                    <div key={q.key} className="space-y-2">
+                      <p className="text-sm">
+                        <span className="font-medium">{q.letter})</span>{" "}
+                        {q.question}
+                      </p>
+                      <div className="flex gap-2">
+                        <ChoiceButton
+                          selected={gateAnswers[q.key] === true}
+                          onClick={() => answerGate(q.key, true)}
+                        >
+                          Ja
+                        </ChoiceButton>
+                        <ChoiceButton
+                          selected={gateAnswers[q.key] === false}
+                          onClick={() => answerGate(q.key, false)}
+                        >
+                          Nein
+                        </ChoiceButton>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {criticalAnswer === true && (
+                {gateAnswers.maliciousUnauthorizedAccess === true && (
                   <div className="space-y-3 border-t border-border/60 pt-6">
                     <p className="text-sm font-medium">
-                      2. Handelt es sich um einen böswilligen unbefugten Zugriff
-                      auf die Netzwerk- und Informationssysteme, der zu
-                      Datenverlusten führen kann?
+                      2. Kann der böswillige unbefugte Zugriff zu Datenverlusten
+                      führen?
                     </p>
                     <div className="flex gap-2">
                       <ChoiceButton
-                        selected={maliciousAnswer === true}
-                        onClick={() => answerMalicious(true)}
+                        selected={dataLossAnswer === true}
+                        onClick={() => answerDataLoss(true)}
                       >
                         Ja
                       </ChoiceButton>
                       <ChoiceButton
-                        selected={maliciousAnswer === false}
-                        onClick={() => answerMalicious(false)}
+                        selected={dataLossAnswer === false}
+                        onClick={() => answerDataLoss(false)}
                       >
                         Nein
                       </ChoiceButton>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Falls ja, wird der Vorfall unmittelbar als schwerwiegend
-                      eingestuft. Andernfalls erfassen Sie die übrigen Kriterien.
+                      eingestuft (Art. 8 Abs. 1 Buchst. a RTS). Andernfalls
+                      erfassen Sie die übrigen Kriterien.
                     </p>
                   </div>
                 )}
@@ -296,13 +386,17 @@ export default function SeverityPage() {
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3">
                   <div className="space-y-0.5 text-sm">
-                    <p className="font-medium">Vorfragen</p>
+                    <p className="font-medium">
+                      Vorfragen (Art. 6 RTS)
+                    </p>
                     <p className="text-muted-foreground">
-                      Kritische/wichtige Funktion:{" "}
-                      {form.criticalServicesAffected ? "Ja" : "Nein"}
-                      {form.criticalServicesAffected &&
-                        ` · Böswilliger Zugriff: ${
-                          form.maliciousUnauthorizedAccess ? "Ja" : "Nein"
+                      {GATE_QUESTIONS.map(
+                        (q) =>
+                          `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
+                      ).join(" · ")}
+                      {form.maliciousUnauthorizedAccess &&
+                        ` · Datenverlust möglich: ${
+                          form.maliciousAccessDataLossPossible ? "Ja" : "Nein"
                         }`}
                     </p>
                   </div>
@@ -542,8 +636,9 @@ export default function SeverityPage() {
                   </div>
                 </div>
                 <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
-                  Keine kritische oder wichtige Funktion betroffen – ein
-                  schwerwiegender Vorfall ist damit ausgeschlossen. Erfassen Sie
+                  Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
+                  Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
+                  ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie
                   bei Bedarf die übrigen Angaben zur Dokumentation und bestätigen
                   Sie mit „Schweregrad bestimmen“.
                 </p>
