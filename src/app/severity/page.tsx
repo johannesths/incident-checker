@@ -4,16 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
   Loader2,
+  Minus,
   RotateCcw,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -84,6 +89,12 @@ const initial: FormState = {
 const INSTANT_DESCRIPTION =
   "Erfolgreicher böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme, der zu Datenverlusten führen kann.";
 
+const MIN_DESCRIPTION_LENGTH = 10;
+
+/* ---------------------------------------------------------------------------
+ * Vorfragen (Art. 6 RTS)
+ * ------------------------------------------------------------------------- */
+
 /**
  * Vorfragen zum Kriterium "Kritikalität der betroffenen Dienste" (Art. 6 RTS).
  * Der Vorfall kann nur dann schwerwiegend sein, wenn mindestens ein Tatbestand
@@ -141,6 +152,177 @@ function questionsComplete(
   return !(answers.maliciousUnauthorizedAccess === true && dataLoss === null);
 }
 
+/* ---------------------------------------------------------------------------
+ * Kriterien als einzeln abzuarbeitende Schritte
+ * ------------------------------------------------------------------------- */
+
+type StepId =
+  | "description"
+  | "clients"
+  | "duration"
+  | "geography"
+  | "dataLoss"
+  | "reputation"
+  | "economic";
+
+/** pending = noch nicht bearbeitet, skipped = als nicht zutreffend abgehakt. */
+type StepStatus = "pending" | "done" | "skipped";
+
+interface StepDef {
+  id: StepId;
+  title: string;
+  article?: string;
+  hint?: string;
+  /** Kurzfassung der Angaben für die eingeklappte Ansicht. */
+  summary: (f: FormState) => string;
+  /** "Nicht zutreffend": setzt die Angaben dieses Schritts zurück. */
+  clear?: (f: FormState) => FormState;
+}
+
+const nf = new Intl.NumberFormat("de-DE");
+
+function num(value: string): string | null {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? nf.format(parsed) : value;
+}
+
+function labelsOf(
+  items: readonly { id: string; label: string }[],
+  ids: readonly string[],
+): string[] {
+  return items.filter((i) => ids.includes(i.id)).map((i) => i.label);
+}
+
+const STEPS: StepDef[] = [
+  {
+    id: "description",
+    title: "Vorfallbeschreibung",
+    hint: "Kurz und sachlich: Was ist passiert? Diese Angabe ist erforderlich.",
+    summary: (f) => f.description.trim(),
+  },
+  {
+    id: "clients",
+    title: "Kunden, Gegenparteien & Transaktionen",
+    article: "Art. 1, Art. 9 Abs. 1",
+    hint: "Schwelle erreicht ab > 10 % der Dienstnutzer, > 100.000 Kunden, > 30 % der Gegenparteien, > 10 % der täglichen Transaktionen (Anzahl oder Wert) oder bei relevanten Kunden/Gegenparteien. Schätzungen sind zulässig.",
+    summary: (f) => {
+      const parts: string[] = [];
+      const clients = num(f.clientsAffected);
+      if (clients) parts.push(`${clients} Kunden`);
+      const clientsPercent = num(f.clientsAffectedPercent);
+      if (clientsPercent) parts.push(`${clientsPercent} % der Dienstnutzer`);
+      const counterparts = num(f.counterpartsAffectedPercent);
+      if (counterparts) parts.push(`${counterparts} % der Gegenparteien`);
+      const txCount = num(f.transactionsCountPercent);
+      if (txCount) parts.push(`${txCount} % der Transaktionen`);
+      const txValue = num(f.transactionsValuePercent);
+      if (txValue) parts.push(`${txValue} % des Transaktionswerts`);
+      if (f.relevantClientsAffected) parts.push("relevante Kunden betroffen");
+      return parts.join(" · ");
+    },
+    clear: (f) => ({
+      ...f,
+      clientsAffected: "",
+      clientsAffectedPercent: "",
+      counterpartsAffectedPercent: "",
+      transactionsCountPercent: "",
+      transactionsValuePercent: "",
+      relevantClientsAffected: false,
+    }),
+  },
+  {
+    id: "duration",
+    title: "Dauer & Ausfallzeit",
+    article: "Art. 3, Art. 9 Abs. 3",
+    hint: "Schwelle: Dauer über 24 Stunden oder Ausfallzeit über 2 Stunden bei IKT-Diensten kritischer/wichtiger Funktionen.",
+    summary: (f) => {
+      const parts: string[] = [];
+      const duration = num(f.durationHours);
+      if (duration) parts.push(`Dauer ${duration} h`);
+      const downtime = num(f.downtimeHours);
+      if (downtime) parts.push(`Ausfallzeit ${downtime} h`);
+      return parts.join(" · ");
+    },
+    clear: (f) => ({ ...f, durationHours: "", downtimeHours: "" }),
+  },
+  {
+    id: "geography",
+    title: "Geografische Ausbreitung",
+    article: "Art. 4, Art. 9 Abs. 4",
+    hint: "Schwelle: Auswirkungen in mindestens zwei Mitgliedstaaten, sofern dort Kunden/Gegenparteien, Gruppenunternehmen oder Marktinfrastrukturen erheblich betroffen sind.",
+    summary: (f) => {
+      const states = num(f.memberStatesAffected);
+      if (!states) return "";
+      const areas = labelsOf(GEO_IMPACT_AREAS, f.geoImpactAreas);
+      return [
+        `${states} Mitgliedstaaten`,
+        ...(areas.length ? [areas.join(", ")] : []),
+      ].join(" · ");
+    },
+    clear: (f) => ({ ...f, memberStatesAffected: "", geoImpactAreas: [] }),
+  },
+  {
+    id: "dataLoss",
+    title: "Datenverluste",
+    article: "Art. 5, Art. 9 Abs. 5",
+    hint: "Schwelle: beeinträchtigtes Schutzziel mit nachteiligen Folgen für Geschäftsziele oder regulatorische Pflichten.",
+    summary: (f) => {
+      const dims = labelsOf(DATA_LOSS_DIMENSIONS, f.dataLossDimensions);
+      if (!dims.length) return "";
+      const impact =
+        f.dataLossAdverseImpact === true
+          ? "nachteilige Auswirkungen: ja"
+          : f.dataLossAdverseImpact === false
+            ? "nachteilige Auswirkungen: nein"
+            : null;
+      return [dims.join(", "), ...(impact ? [impact] : [])].join(" · ");
+    },
+    clear: (f) => ({
+      ...f,
+      dataLossDimensions: [],
+      dataLossAdverseImpact: null,
+    }),
+  },
+  {
+    id: "reputation",
+    title: "Reputationsauswirkung",
+    article: "Art. 2, Art. 9 Abs. 2",
+    hint: "Schwelle erreicht, sobald mindestens eine Bedingung erfüllt ist – auch die zu erwartende Sichtbarkeit des Vorfalls zählt.",
+    summary: (f) =>
+      labelsOf(REPUTATION_CONDITIONS, f.reputationalImpactConditions).join(", "),
+    clear: (f) => ({ ...f, reputationalImpactConditions: [] }),
+  },
+  {
+    id: "economic",
+    title: "Wirtschaftliche Auswirkung",
+    article: "Art. 7, Art. 9 Abs. 6",
+    hint: "Schwelle: Kosten und Verluste über 100.000 EUR – brutto, ohne Verrechnung von Rückflüssen; laufende Betriebskosten zählen nicht.",
+    summary: (f) => {
+      const eur = num(f.economicImpactEur);
+      return eur ? `${eur} EUR` : "";
+    },
+    clear: (f) => ({ ...f, economicImpactEur: "" }),
+  },
+];
+
+const initialStatus = Object.fromEntries(
+  STEPS.map((s) => [s.id, "pending" as StepStatus]),
+) as Record<StepId, StepStatus>;
+
+const allDoneStatus = Object.fromEntries(
+  STEPS.map((s) => [s.id, "done" as StepStatus]),
+) as Record<StepId, StepStatus>;
+
+function nextStepId(id: StepId): StepId | null {
+  const index = STEPS.findIndex((s) => s.id === id);
+  return STEPS[index + 1]?.id ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Bearbeitungsstand
+ * ------------------------------------------------------------------------- */
+
 type Stage = "questions" | "form";
 
 /** Im sessionStorage gesicherter Bearbeitungsstand. */
@@ -149,6 +331,9 @@ interface SeverityDraft {
   gateAnswers: GateAnswers;
   dataLossAnswer: boolean | null;
   form: FormState;
+  stepStatus: Record<StepId, StepStatus>;
+  /** Aktuell aufgeklappter Schritt; null = alle eingeklappt. */
+  activeStep: StepId | null;
 }
 
 const initialDraft: SeverityDraft = {
@@ -156,26 +341,36 @@ const initialDraft: SeverityDraft = {
   gateAnswers: noGateAnswers,
   dataLossAnswer: null,
   form: initial,
+  stepStatus: initialStatus,
+  activeStep: "description",
 };
+
+/** Ergänzt einen gespeicherten Stand um zwischenzeitlich neue Felder. */
+function withDefaults(draft: SeverityDraft | null | undefined): SeverityDraft {
+  if (!draft) return initialDraft;
+  return {
+    ...initialDraft,
+    ...draft,
+    stepStatus: { ...initialStatus, ...draft.stepStatus },
+  };
+}
 
 export default function SeverityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   // Der Bearbeitungsstand liegt im sessionStorage, damit der Rückweg von der
   // Ergebnisseite die Eingaben erhält.
-  const draft =
-    useSessionValue<SeverityDraft>(STORAGE_KEYS.severityDraft) ?? initialDraft;
-  const { stage, gateAnswers, dataLossAnswer, form } = draft;
+  const draft = withDefaults(
+    useSessionValue<SeverityDraft>(STORAGE_KEYS.severityDraft),
+  );
+  const { stage, gateAnswers, dataLossAnswer, form, stepStatus, activeStep } =
+    draft;
 
   function patch(fn: (d: SeverityDraft) => SeverityDraft) {
     updateSession<SeverityDraft>(
       STORAGE_KEYS.severityDraft,
-      (current: SeverityDraft | null) => fn(current ?? initialDraft),
+      (current: SeverityDraft | null) => fn(withDefaults(current)),
     );
-  }
-
-  function setStage(next: Stage) {
-    patch((d) => ({ ...d, stage: next }));
   }
 
   function updateForm(fn: (f: FormState) => FormState) {
@@ -223,6 +418,34 @@ export default function SeverityPage() {
   function reset() {
     clearSession(STORAGE_KEYS.severityDraft, STORAGE_KEYS.severityResult);
   }
+
+  /* --- Schrittsteuerung --------------------------------------------------- */
+
+  function toggleStep(id: StepId) {
+    patch((d) => ({ ...d, activeStep: d.activeStep === id ? null : id }));
+  }
+
+  /** Angaben übernehmen und zum nächsten Kriterium wechseln. */
+  function completeStep(id: StepId) {
+    patch((d) => ({
+      ...d,
+      stepStatus: { ...d.stepStatus, [id]: "done" },
+      activeStep: nextStepId(id),
+    }));
+  }
+
+  /** Kriterium als nicht zutreffend abhaken und Angaben zurücksetzen. */
+  function skipStep(id: StepId) {
+    const def = STEPS.find((s) => s.id === id);
+    patch((d) => ({
+      ...d,
+      form: def?.clear ? def.clear(d.form) : d.form,
+      stepStatus: { ...d.stepStatus, [id]: "skipped" },
+      activeStep: nextStepId(id),
+    }));
+  }
+
+  /* --- Einstufung --------------------------------------------------------- */
 
   /** Stuft ein und wechselt anschließend auf die Ergebnisseite. */
   async function classify(body: FormState | Record<string, unknown>) {
@@ -306,11 +529,20 @@ export default function SeverityPage() {
         ? data.maliciousAccessDataLossPossible
         : null,
       form: data,
+      stepStatus: allDoneStatus,
+      activeStep: null,
     });
   }
 
   async function onSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
+    if (form.description.trim().length < MIN_DESCRIPTION_LENGTH) {
+      toast.error(
+        `Bitte beschreiben Sie den Vorfall (mind. ${MIN_DESCRIPTION_LENGTH} Zeichen).`,
+      );
+      patch((d) => ({ ...d, activeStep: "description" }));
+      return;
+    }
     // Unbeantwortete Zusatzfrage zählt als "Nein" (Schwelle nicht erreicht).
     await classify({
       ...form,
@@ -318,18 +550,293 @@ export default function SeverityPage() {
     });
   }
 
+  /* --- Felder je Schritt -------------------------------------------------- */
+
+  function stepFields(id: StepId) {
+    switch (id) {
+      case "description":
+        return (
+          <Textarea
+            id="description"
+            rows={4}
+            placeholder="Was ist passiert?"
+            aria-label="Vorfallbeschreibung"
+            value={form.description}
+            onChange={(e) => update("description", e.target.value)}
+          />
+        );
+
+      case "clients":
+        return (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Kunden (Anzahl)" htmlFor="clientsAffected">
+                <Input
+                  id="clientsAffected"
+                  type="number"
+                  min={0}
+                  placeholder="z. B. 120000"
+                  value={form.clientsAffected}
+                  onChange={(e) => update("clientsAffected", e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Kunden (% der Dienstnutzer)"
+                htmlFor="clientsAffectedPercent"
+              >
+                <Input
+                  id="clientsAffectedPercent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="z. B. 20"
+                  value={form.clientsAffectedPercent}
+                  onChange={(e) =>
+                    update("clientsAffectedPercent", e.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label="Finanzielle Gegenparteien (%)"
+                htmlFor="counterpartsAffectedPercent"
+              >
+                <Input
+                  id="counterpartsAffectedPercent"
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="z. B. 35"
+                  value={form.counterpartsAffectedPercent}
+                  onChange={(e) =>
+                    update("counterpartsAffectedPercent", e.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label="Transaktionen (% der tägl. Ø-Anzahl)"
+                htmlFor="transactionsCountPercent"
+              >
+                <Input
+                  id="transactionsCountPercent"
+                  type="number"
+                  min={0}
+                  placeholder="z. B. 15"
+                  value={form.transactionsCountPercent}
+                  onChange={(e) =>
+                    update("transactionsCountPercent", e.target.value)
+                  }
+                />
+              </Field>
+              <Field
+                label="Transaktionswert (% des tägl. Ø-Werts)"
+                htmlFor="transactionsValuePercent"
+              >
+                <Input
+                  id="transactionsValuePercent"
+                  type="number"
+                  min={0}
+                  placeholder="z. B. 15"
+                  value={form.transactionsValuePercent}
+                  onChange={(e) =>
+                    update("transactionsValuePercent", e.target.value)
+                  }
+                />
+              </Field>
+            </div>
+            <TogglePill
+              active={form.relevantClientsAffected}
+              title="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt (Art. 1 Abs. 3 RTS) – erreicht die Schwelle für sich genommen."
+              onClick={() =>
+                update("relevantClientsAffected", !form.relevantClientsAffected)
+              }
+            >
+              Relevante Kunden/Gegenparteien betroffen
+            </TogglePill>
+          </>
+        );
+
+      case "duration":
+        return (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Dauer (Stunden)" htmlFor="durationHours">
+              <Input
+                id="durationHours"
+                type="number"
+                min={0}
+                value={form.durationHours}
+                onChange={(e) => update("durationHours", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
+              htmlFor="downtimeHours"
+            >
+              <Input
+                id="downtimeHours"
+                type="number"
+                min={0}
+                value={form.downtimeHours}
+                onChange={(e) => update("downtimeHours", e.target.value)}
+              />
+            </Field>
+          </div>
+        );
+
+      case "geography":
+        return (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="Mitgliedstaaten mit Auswirkungen"
+                htmlFor="memberStatesAffected"
+              >
+                <Input
+                  id="memberStatesAffected"
+                  type="number"
+                  min={0}
+                  value={form.memberStatesAffected}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    updateForm((f) => ({
+                      ...f,
+                      memberStatesAffected: value,
+                      // Unter zwei Mitgliedstaaten ist die Zusatzfrage nach der
+                      // Erheblichkeit (Art. 4) gegenstandslos.
+                      geoImpactAreas:
+                        Number(value) >= 2 ? f.geoImpactAreas : [],
+                    }));
+                  }}
+                />
+              </Field>
+            </div>
+            {Number(form.memberStatesAffected) >= 2 && (
+              <div className="space-y-2">
+                <Label>Erheblich betroffene Bereiche</Label>
+                <div className="flex flex-wrap gap-2">
+                  {GEO_IMPACT_AREAS.map((a) => (
+                    <TogglePill
+                      key={a.id}
+                      active={form.geoImpactAreas.includes(a.id)}
+                      title={a.hint}
+                      onClick={() => toggleGeoArea(a.id)}
+                    >
+                      {a.label}
+                    </TogglePill>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+      case "dataLoss":
+        return (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {DATA_LOSS_DIMENSIONS.map((d) => (
+                <TogglePill
+                  key={d.id}
+                  active={form.dataLossDimensions.includes(d.id)}
+                  title={d.hint}
+                  onClick={() => toggleDataLoss(d.id)}
+                >
+                  {d.label}
+                </TogglePill>
+              ))}
+            </div>
+            {form.dataLossDimensions.length > 0 && (
+              <div className="space-y-3 rounded-lg border border-border/60 bg-background/60 p-3">
+                <p className="text-sm font-medium">
+                  Hat oder wird die Beeinträchtigung nachteilige Auswirkungen
+                  auf die Geschäftsziele oder die Erfüllung regulatorischer
+                  Anforderungen haben?
+                </p>
+                <div className="flex gap-2 sm:max-w-sm">
+                  <ChoiceButton
+                    selected={form.dataLossAdverseImpact === true}
+                    onClick={() => update("dataLossAdverseImpact", true)}
+                  >
+                    Ja
+                  </ChoiceButton>
+                  <ChoiceButton
+                    selected={form.dataLossAdverseImpact === false}
+                    onClick={() => update("dataLossAdverseImpact", false)}
+                  >
+                    Nein
+                  </ChoiceButton>
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+      case "reputation":
+        return (
+          <div className="flex flex-wrap gap-2">
+            {REPUTATION_CONDITIONS.map((c) => (
+              <TogglePill
+                key={c.id}
+                active={form.reputationalImpactConditions.includes(c.id)}
+                title={c.hint}
+                onClick={() => toggleReputation(c.id)}
+              >
+                {c.label}
+              </TogglePill>
+            ))}
+          </div>
+        );
+
+      case "economic":
+        return (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Kosten und Verluste (EUR)"
+              htmlFor="economicImpactEur"
+            >
+              <Input
+                id="economicImpactEur"
+                type="number"
+                min={0}
+                placeholder="z. B. 250000"
+                value={form.economicImpactEur}
+                onChange={(e) => update("economicImpactEur", e.target.value)}
+              />
+            </Field>
+          </div>
+        );
+    }
+  }
+
+  /* --- Darstellung -------------------------------------------------------- */
+
   // Steht bereits durch die Vorfragen fest, dass kein schwerwiegender Vorfall
   // vorliegt (kein Tatbestand des Art. 6 RTS erfüllt)?
   const ruledOutNonMajor = GATE_QUESTIONS.every(
     (q) => gateAnswers[q.key] === false,
   );
+  const addressed = STEPS.filter((s) => stepStatus[s.id] !== "pending").length;
+  const descriptionMissing =
+    form.description.trim().length < MIN_DESCRIPTION_LENGTH;
+
+  const gateSummary = [
+    ...GATE_QUESTIONS.map(
+      (q) => `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
+    ),
+    ...(form.maliciousUnauthorizedAccess
+      ? [
+          `Datenverlust möglich: ${
+            form.maliciousAccessDataLossPossible ? "Ja" : "Nein"
+          }`,
+        ]
+      : []),
+  ].join(" · ");
 
   return (
     <div className="space-y-8">
       <PageHeader
         step="Schritt 02"
         title="Schweregrad bestimmen (DORA)"
-        desc="Beantworten Sie zunächst die Vorfragen zur Kritikalität der betroffenen Dienste. Je nach Antwort erfolgt eine unmittelbare Einstufung oder die Erfassung der übrigen DORA-Klassifizierungskriterien. Das Ergebnis erscheint nach dem Absenden auf einer eigenen Seite."
+        desc="Beantworten Sie zunächst die Vorfragen zur Kritikalität der betroffenen Dienste. Anschließend arbeiten Sie die Klassifizierungskriterien einzeln ab – jedes lässt sich ausfüllen oder als nicht zutreffend abhaken."
       />
 
       {stage === "questions" ? (
@@ -411,353 +918,157 @@ export default function SeverityPage() {
           </CardContent>
         </Card>
       ) : (
-        /* Ausführliche Erfassung der DORA-Kriterien */
-        <Card className="border-border/60 bg-card/70 backdrop-blur">
-          <CardContent className="space-y-5 p-6 sm:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3">
-              <div className="space-y-0.5 text-sm">
-                <p className="font-medium">Vorfragen (Art. 6 RTS)</p>
+        /* Kriterien einzeln abarbeiten */
+        <div className="mx-auto w-full max-w-4xl space-y-5">
+          {ruledOutNonMajor && (
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-success/5 p-4">
+              <span
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                  CLASSIFICATION.non_major.chip,
+                )}
+              >
+                <ShieldCheck className="size-5" />
+              </span>
+              <div className="space-y-1 text-sm">
+                <p className="font-medium">
+                  Vorläufig: {CLASSIFICATION.non_major.label}
+                </p>
                 <p className="text-muted-foreground">
-                  {GATE_QUESTIONS.map(
-                    (q) =>
-                      `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
-                  ).join(" · ")}
-                  {form.maliciousUnauthorizedAccess &&
-                    ` · Datenverlust möglich: ${
-                      form.maliciousAccessDataLossPossible ? "Ja" : "Nein"
-                    }`}
+                  Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
+                  Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
+                  ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie bei
+                  Bedarf die übrigen Angaben zur Dokumentation und bestätigen
+                  Sie mit „Schweregrad bestimmen“.
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setStage("questions")}
-              >
-                <ArrowLeft className="size-4" />
-                Ändern
-              </Button>
             </div>
+          )}
 
-            {ruledOutNonMajor && (
-              <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-success/5 p-4">
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                    CLASSIFICATION.non_major.chip,
-                  )}
-                >
-                  <ShieldCheck className="size-5" />
-                </span>
-                <div className="space-y-1 text-sm">
-                  <p className="font-medium">
-                    Vorläufig: {CLASSIFICATION.non_major.label}
-                  </p>
-                  <p className="text-muted-foreground">
-                    Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
-                    Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
-                    ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie
-                    bei Bedarf die übrigen Angaben zur Dokumentation und
-                    bestätigen Sie mit „Schweregrad bestimmen“.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-                <Sparkles className="size-3.5" />
-                Beispiel laden
-              </span>
-              {SEVERITY_SCENARIOS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  title={s.hint}
-                  onClick={() => loadScenario(s.data)}
-                  className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={onSubmit} className="space-y-4">
-              <FormSection title="Vorfallbeschreibung">
-                <Textarea
-                  id="description"
-                  required
-                  rows={4}
-                  placeholder="Was ist passiert?"
-                  aria-label="Vorfallbeschreibung"
-                  value={form.description}
-                  onChange={(e) => update("description", e.target.value)}
-                />
-              </FormSection>
-
-              <FormSection
-                title="Kunden, Gegenparteien & Transaktionen"
-                article="Art. 1, Art. 9 Abs. 1"
-                hint="Schwelle erreicht ab > 10 % der Dienstnutzer, > 100.000 Kunden, > 30 % der Gegenparteien, > 10 % der täglichen Transaktionen (Anzahl oder Wert) oder bei relevanten Kunden/Gegenparteien. Schätzungen sind zulässig."
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+              <Sparkles className="size-3.5" />
+              Beispiel laden
+            </span>
+            {SEVERITY_SCENARIOS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                title={s.hint}
+                onClick={() => loadScenario(s.data)}
+                className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
               >
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Kunden (Anzahl)" htmlFor="clientsAffected">
-                    <Input
-                      id="clientsAffected"
-                      type="number"
-                      min={0}
-                      placeholder="z. B. 120000"
-                      value={form.clientsAffected}
-                      onChange={(e) =>
-                        update("clientsAffected", e.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field
-                    label="Kunden (% der Dienstnutzer)"
-                    htmlFor="clientsAffectedPercent"
-                  >
-                    <Input
-                      id="clientsAffectedPercent"
-                      type="number"
-                      min={0}
-                      max={100}
-                      placeholder="z. B. 20"
-                      value={form.clientsAffectedPercent}
-                      onChange={(e) =>
-                        update("clientsAffectedPercent", e.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field
-                    label="Finanzielle Gegenparteien (%)"
-                    htmlFor="counterpartsAffectedPercent"
-                  >
-                    <Input
-                      id="counterpartsAffectedPercent"
-                      type="number"
-                      min={0}
-                      max={100}
-                      placeholder="z. B. 35"
-                      value={form.counterpartsAffectedPercent}
-                      onChange={(e) =>
-                        update("counterpartsAffectedPercent", e.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field
-                    label="Transaktionen (% der tägl. Ø-Anzahl)"
-                    htmlFor="transactionsCountPercent"
-                  >
-                    <Input
-                      id="transactionsCountPercent"
-                      type="number"
-                      min={0}
-                      placeholder="z. B. 15"
-                      value={form.transactionsCountPercent}
-                      onChange={(e) =>
-                        update("transactionsCountPercent", e.target.value)
-                      }
-                    />
-                  </Field>
-                  <Field
-                    label="Transaktionswert (% des tägl. Ø-Werts)"
-                    htmlFor="transactionsValuePercent"
-                  >
-                    <Input
-                      id="transactionsValuePercent"
-                      type="number"
-                      min={0}
-                      placeholder="z. B. 15"
-                      value={form.transactionsValuePercent}
-                      onChange={(e) =>
-                        update("transactionsValuePercent", e.target.value)
-                      }
-                    />
-                  </Field>
-                </div>
-                <TogglePill
-                  active={form.relevantClientsAffected}
-                  title="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt (Art. 1 Abs. 3 RTS) – erreicht die Schwelle für sich genommen."
-                  onClick={() =>
-                    update(
-                      "relevantClientsAffected",
-                      !form.relevantClientsAffected,
-                    )
-                  }
-                >
-                  Relevante Kunden/Gegenparteien betroffen
-                </TogglePill>
-              </FormSection>
+                {s.label}
+              </button>
+            ))}
+          </div>
 
-              <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-                <FormSection
-                  title="Dauer & Ausfallzeit"
-                  article="Art. 3, Art. 9 Abs. 3"
-                  hint="Schwelle: Dauer über 24 Stunden oder Ausfallzeit über 2 Stunden bei IKT-Diensten kritischer/wichtiger Funktionen."
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Dauer (Stunden)" htmlFor="durationHours">
-                      <Input
-                        id="durationHours"
-                        type="number"
-                        min={0}
-                        value={form.durationHours}
-                        onChange={(e) =>
-                          update("durationHours", e.target.value)
+          <form onSubmit={onSubmit} className="space-y-5">
+            <ol className="space-y-3">
+              {/* Die beantworteten Vorfragen als erste, erledigte Stufe */}
+              <StepRow
+                marker={<Check className="size-5" />}
+                status="done"
+                title="Vorfragen: Kritikalität der Dienste"
+                article="Art. 6"
+                summary={gateSummary}
+                trailing={
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <ArrowLeft className="size-3.5" />
+                    Ändern
+                  </span>
+                }
+                onToggle={() => patch((d) => ({ ...d, stage: "questions" }))}
+              />
+
+              {STEPS.map((step, index) => {
+                const status = stepStatus[step.id];
+                const open = activeStep === step.id;
+                const summary = step.summary(form);
+                const isLast = index === STEPS.length - 1;
+                return (
+                  <StepRow
+                    key={step.id}
+                    marker={
+                      status === "done" ? (
+                        <Check className="size-5" />
+                      ) : status === "skipped" ? (
+                        <Minus className="size-5" />
+                      ) : (
+                        index + 1
+                      )
+                    }
+                    status={status}
+                    title={step.title}
+                    article={step.article}
+                    open={open}
+                    summary={
+                      status === "skipped"
+                        ? "Nicht zutreffend"
+                        : summary || "Noch keine Angaben"
+                    }
+                    isLast={isLast}
+                    onToggle={() => toggleStep(step.id)}
+                  >
+                    {step.hint && (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {step.hint}
+                      </p>
+                    )}
+                    {stepFields(step.id)}
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={
+                          step.id === "description" && descriptionMissing
                         }
-                      />
-                    </Field>
-                    <Field
-                      label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
-                      htmlFor="downtimeHours"
-                    >
-                      <Input
-                        id="downtimeHours"
-                        type="number"
-                        min={0}
-                        value={form.downtimeHours}
-                        onChange={(e) =>
-                          update("downtimeHours", e.target.value)
-                        }
-                      />
-                    </Field>
-                  </div>
-                </FormSection>
-
-                <FormSection
-                  title="Geografische Ausbreitung"
-                  article="Art. 4, Art. 9 Abs. 4"
-                  hint="Schwelle: Auswirkungen in mindestens zwei Mitgliedstaaten, sofern dort Kunden/Gegenparteien, Gruppenunternehmen oder Marktinfrastrukturen erheblich betroffen sind."
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
-                      label="Mitgliedstaaten mit Auswirkungen"
-                      htmlFor="memberStatesAffected"
-                    >
-                      <Input
-                        id="memberStatesAffected"
-                        type="number"
-                        min={0}
-                        value={form.memberStatesAffected}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          updateForm((f) => ({
-                            ...f,
-                            memberStatesAffected: value,
-                            // Unter zwei Mitgliedstaaten ist die Zusatzfrage
-                            // nach der Erheblichkeit (Art. 4) gegenstandslos.
-                            geoImpactAreas:
-                              Number(value) >= 2 ? f.geoImpactAreas : [],
-                          }));
-                        }}
-                      />
-                    </Field>
-                  </div>
-                  {Number(form.memberStatesAffected) >= 2 && (
-                    <div className="space-y-2">
-                      <Label>Erheblich betroffene Bereiche</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {GEO_IMPACT_AREAS.map((a) => (
-                          <TogglePill
-                            key={a.id}
-                            active={form.geoImpactAreas.includes(a.id)}
-                            title={a.hint}
-                            onClick={() => toggleGeoArea(a.id)}
-                          >
-                            {a.label}
-                          </TogglePill>
-                        ))}
-                      </div>
+                        onClick={() => completeStep(step.id)}
+                      >
+                        {isLast ? "Fertig" : "Weiter"}
+                        <ArrowRight className="size-4" />
+                      </Button>
+                      {step.clear && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => skipStep(step.id)}
+                        >
+                          <X className="size-4" />
+                          Nicht zutreffend
+                        </Button>
+                      )}
+                      {step.id === "description" && descriptionMissing && (
+                        <span className="text-xs text-muted-foreground">
+                          Mindestens {MIN_DESCRIPTION_LENGTH} Zeichen.
+                        </span>
+                      )}
                     </div>
-                  )}
-                </FormSection>
+                  </StepRow>
+                );
+              })}
+            </ol>
+
+            <div className="space-y-4 rounded-xl border border-border/60 bg-card/70 p-5 backdrop-blur">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold">Einstufung</p>
+                  <p className="text-xs text-muted-foreground">
+                    {addressed} von {STEPS.length} Kriterien bearbeitet
+                  </p>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${(addressed / STEPS.length) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Nicht bearbeitete Kriterien gehen als „Schwelle nicht
+                  erreicht“ in die Einstufung ein.
+                </p>
               </div>
-
-              <FormSection
-                title="Datenverluste"
-                article="Art. 5, Art. 9 Abs. 5"
-                hint="Schwelle: beeinträchtigtes Schutzziel mit nachteiligen Folgen für Geschäftsziele oder regulatorische Pflichten."
-              >
-                <div className="flex flex-wrap gap-2">
-                  {DATA_LOSS_DIMENSIONS.map((d) => (
-                    <TogglePill
-                      key={d.id}
-                      active={form.dataLossDimensions.includes(d.id)}
-                      title={d.hint}
-                      onClick={() => toggleDataLoss(d.id)}
-                    >
-                      {d.label}
-                    </TogglePill>
-                  ))}
-                </div>
-                {form.dataLossDimensions.length > 0 && (
-                  <div className="space-y-3 rounded-lg border border-border/60 bg-background/60 p-3">
-                    <p className="text-sm font-medium">
-                      Hat oder wird die Beeinträchtigung nachteilige
-                      Auswirkungen auf die Geschäftsziele oder die Erfüllung
-                      regulatorischer Anforderungen haben?
-                    </p>
-                    <div className="flex gap-2 sm:max-w-sm">
-                      <ChoiceButton
-                        selected={form.dataLossAdverseImpact === true}
-                        onClick={() => update("dataLossAdverseImpact", true)}
-                      >
-                        Ja
-                      </ChoiceButton>
-                      <ChoiceButton
-                        selected={form.dataLossAdverseImpact === false}
-                        onClick={() => update("dataLossAdverseImpact", false)}
-                      >
-                        Nein
-                      </ChoiceButton>
-                    </div>
-                  </div>
-                )}
-              </FormSection>
-
-              <FormSection
-                title="Reputationsauswirkung"
-                article="Art. 2, Art. 9 Abs. 2"
-                hint="Schwelle erreicht, sobald mindestens eine Bedingung erfüllt ist – auch die zu erwartende Sichtbarkeit des Vorfalls zählt."
-              >
-                <div className="flex flex-wrap gap-2">
-                  {REPUTATION_CONDITIONS.map((c) => (
-                    <TogglePill
-                      key={c.id}
-                      active={form.reputationalImpactConditions.includes(c.id)}
-                      title={c.hint}
-                      onClick={() => toggleReputation(c.id)}
-                    >
-                      {c.label}
-                    </TogglePill>
-                  ))}
-                </div>
-              </FormSection>
-
-              <FormSection
-                title="Wirtschaftliche Auswirkung"
-                article="Art. 7, Art. 9 Abs. 6"
-                hint="Schwelle: Kosten und Verluste über 100.000 EUR – brutto, ohne Verrechnung von Rückflüssen; laufende Betriebskosten zählen nicht."
-              >
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field
-                    label="Kosten und Verluste (EUR)"
-                    htmlFor="economicImpactEur"
-                  >
-                    <Input
-                      id="economicImpactEur"
-                      type="number"
-                      min={0}
-                      placeholder="z. B. 250000"
-                      value={form.economicImpactEur}
-                      onChange={(e) =>
-                        update("economicImpactEur", e.target.value)
-                      }
-                    />
-                  </Field>
-                </div>
-              </FormSection>
-
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button
                   type="button"
@@ -778,11 +1089,112 @@ export default function SeverityPage() {
                   Schweregrad bestimmen
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </div>
+          </form>
+        </div>
       )}
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Bausteine
+ * ------------------------------------------------------------------------- */
+
+const MARKER_STYLE: Record<StepStatus, string> = {
+  pending: "border-border/70 bg-background text-muted-foreground",
+  done: "border-success/40 bg-success/15 text-success",
+  skipped: "border-border/70 bg-muted text-muted-foreground",
+};
+
+/** Eine Stufe des Kriterienbaums: Kopfzeile mit Status, aufklappbarer Inhalt. */
+function StepRow({
+  marker,
+  status,
+  title,
+  article,
+  summary,
+  open = false,
+  isLast = false,
+  trailing,
+  onToggle,
+  children,
+}: {
+  marker: React.ReactNode;
+  status: StepStatus;
+  title: string;
+  article?: string;
+  summary: string;
+  open?: boolean;
+  isLast?: boolean;
+  trailing?: React.ReactNode;
+  onToggle: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <li className="relative pl-14">
+      {!isLast && (
+        <span
+          aria-hidden
+          className="absolute -bottom-3 left-[19px] top-11 w-px bg-border/70"
+        />
+      )}
+      <span
+        className={cn(
+          "absolute left-0 top-1 flex size-10 items-center justify-center rounded-full border text-sm font-semibold",
+          MARKER_STYLE[status],
+          open && "border-primary bg-primary/10 text-primary",
+        )}
+      >
+        {marker}
+      </span>
+      <div
+        className={cn(
+          "overflow-hidden rounded-xl border transition-colors",
+          open
+            ? "border-primary/40 bg-card/80 backdrop-blur"
+            : "border-border/60 bg-muted/20",
+        )}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={children ? open : undefined}
+          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold tracking-tight">
+                {title}
+              </span>
+              {article && (
+                <span className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {article} RTS
+                </span>
+              )}
+            </span>
+            {!open && summary && (
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {summary}
+              </span>
+            )}
+          </span>
+          {trailing ?? (
+            <ChevronDown
+              className={cn(
+                "size-4 shrink-0 text-muted-foreground transition-transform",
+                open && "rotate-180",
+              )}
+            />
+          )}
+        </button>
+        {open && children && (
+          <div className="space-y-4 border-t border-border/60 p-4">
+            {children}
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 
@@ -825,43 +1237,6 @@ function Field({
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
-  );
-}
-
-/**
- * Abschnitt je DORA-Kriterium: Titel, RTS-Fundstelle und eine kompakte
- * Schwellen-Zusammenfassung – Details stehen in den Tooltips der Optionen.
- */
-function FormSection({
-  title,
-  article,
-  hint,
-  children,
-}: {
-  title: string;
-  article?: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="h-full space-y-4 rounded-xl border border-border/50 bg-muted/20 p-4 sm:p-5">
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-          {article && (
-            <span className="shrink-0 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {article} RTS
-            </span>
-          )}
-        </div>
-        {hint && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {hint}
-          </p>
-        )}
-      </div>
-      {children}
-    </section>
   );
 }
 
