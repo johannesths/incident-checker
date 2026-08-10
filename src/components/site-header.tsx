@@ -34,7 +34,9 @@ export function SiteHeader() {
         <div className="flex items-center gap-3">
           <nav className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 text-sm">
             {NAV.map((item) => {
-            const active = pathname === item.href;
+            // Unterseiten (z. B. /triage/ergebnis) markieren denselben Schritt.
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}

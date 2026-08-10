@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Loader2,
-  ListChecks,
   RotateCcw,
-  ShieldAlert,
   ShieldCheck,
-  ShieldQuestion,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,11 +14,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  CRITERION_BY_ID,
   DATA_LOSS_DIMENSIONS,
   REPUTATION_CONDITIONS,
   GEO_IMPACT_AREAS,
@@ -28,7 +25,15 @@ import {
   type ReputationCondition,
   type GeoImpactArea,
 } from "@/lib/dora/criteria";
+import { CLASSIFICATION } from "@/lib/dora/presentation";
 import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
+import {
+  STORAGE_KEYS,
+  clearSession,
+  saveSession,
+  updateSession,
+  useSessionValue,
+} from "@/lib/session-store";
 import type { SeverityResult } from "@/lib/schemas";
 
 interface FormState {
@@ -44,7 +49,8 @@ interface FormState {
   memberStatesAffected: string;
   geoImpactAreas: GeoImpactArea[];
   dataLossDimensions: DataLossDimension[];
-  dataLossAdverseImpact: boolean;
+  /** null = Zusatzfrage noch nicht beantwortet. */
+  dataLossAdverseImpact: boolean | null;
   criticalFunctionAffected: boolean;
   regulatedServicesAffected: boolean;
   maliciousUnauthorizedAccess: boolean;
@@ -66,7 +72,7 @@ const initial: FormState = {
   memberStatesAffected: "",
   geoImpactAreas: [],
   dataLossDimensions: [],
-  dataLossAdverseImpact: false,
+  dataLossAdverseImpact: null,
   criticalFunctionAffected: false,
   regulatedServicesAffected: false,
   maliciousUnauthorizedAccess: false,
@@ -123,46 +129,65 @@ const noGateAnswers: GateAnswers = {
   maliciousUnauthorizedAccess: null,
 };
 
-const CLASSIFICATION: Record<
-  SeverityResult["classification"],
-  { label: string; icon: typeof ShieldAlert; bar: string; chip: string }
-> = {
-  major: {
-    label: "Schwerwiegender Vorfall",
-    icon: ShieldAlert,
-    bar: "bg-destructive",
-    chip: "bg-destructive/10 text-destructive",
-  },
-  non_major: {
-    label: "Kein schwerwiegender Vorfall",
-    icon: ShieldCheck,
-    bar: "bg-success",
-    chip: "bg-success/15 text-success",
-  },
-  indeterminate: {
-    label: "Nicht eindeutig bestimmbar",
-    icon: ShieldQuestion,
-    bar: "bg-warning",
-    chip: "bg-warning/15 text-warning",
-  },
-};
+/**
+ * Sind alle Vorfragen beantwortet? Erst dann geht es weiter – bei böswilligem
+ * Zugriff einschließlich der Zusatzfrage nach möglichen Datenverlusten.
+ */
+function questionsComplete(
+  answers: GateAnswers,
+  dataLoss: boolean | null,
+): boolean {
+  if (GATE_QUESTIONS.some((q) => answers[q.key] === null)) return false;
+  return !(answers.maliciousUnauthorizedAccess === true && dataLoss === null);
+}
 
 type Stage = "questions" | "form";
 
+/** Im sessionStorage gesicherter Bearbeitungsstand. */
+interface SeverityDraft {
+  stage: Stage;
+  gateAnswers: GateAnswers;
+  dataLossAnswer: boolean | null;
+  form: FormState;
+}
+
+const initialDraft: SeverityDraft = {
+  stage: "questions",
+  gateAnswers: noGateAnswers,
+  dataLossAnswer: null,
+  form: initial,
+};
+
 export default function SeverityPage() {
-  const [stage, setStage] = useState<Stage>("questions");
-  const [gateAnswers, setGateAnswers] = useState<GateAnswers>(noGateAnswers);
-  const [dataLossAnswer, setDataLossAnswer] = useState<boolean | null>(null);
-  const [form, setForm] = useState<FormState>(initial);
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SeverityResult | null>(null);
+  // Der Bearbeitungsstand liegt im sessionStorage, damit der Rückweg von der
+  // Ergebnisseite die Eingaben erhält.
+  const draft =
+    useSessionValue<SeverityDraft>(STORAGE_KEYS.severityDraft) ?? initialDraft;
+  const { stage, gateAnswers, dataLossAnswer, form } = draft;
+
+  function patch(fn: (d: SeverityDraft) => SeverityDraft) {
+    updateSession<SeverityDraft>(
+      STORAGE_KEYS.severityDraft,
+      (current: SeverityDraft | null) => fn(current ?? initialDraft),
+    );
+  }
+
+  function setStage(next: Stage) {
+    patch((d) => ({ ...d, stage: next }));
+  }
+
+  function updateForm(fn: (f: FormState) => FormState) {
+    patch((d) => ({ ...d, form: fn(d.form) }));
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+    updateForm((f) => ({ ...f, [key]: value }));
   }
 
   function toggleGeoArea(id: GeoImpactArea) {
-    setForm((f) => ({
+    updateForm((f) => ({
       ...f,
       geoImpactAreas: f.geoImpactAreas.includes(id)
         ? f.geoImpactAreas.filter((x) => x !== id)
@@ -171,7 +196,7 @@ export default function SeverityPage() {
   }
 
   function toggleReputation(id: ReputationCondition) {
-    setForm((f) => ({
+    updateForm((f) => ({
       ...f,
       reputationalImpactConditions: f.reputationalImpactConditions.includes(id)
         ? f.reputationalImpactConditions.filter((x) => x !== id)
@@ -180,7 +205,7 @@ export default function SeverityPage() {
   }
 
   function toggleDataLoss(id: DataLossDimension) {
-    setForm((f) => {
+    updateForm((f) => {
       const dataLossDimensions = f.dataLossDimensions.includes(id)
         ? f.dataLossDimensions.filter((x) => x !== id)
         : [...f.dataLossDimensions, id];
@@ -190,22 +215,18 @@ export default function SeverityPage() {
         // Ohne beeinträchtigte Schutzziele ist die Zusatzfrage nach den
         // nachteiligen Auswirkungen (Art. 9 Abs. 5 Buchst. a) gegenstandslos.
         dataLossAdverseImpact:
-          dataLossDimensions.length > 0 ? f.dataLossAdverseImpact : false,
+          dataLossDimensions.length > 0 ? f.dataLossAdverseImpact : null,
       };
     });
   }
 
   function reset() {
-    setStage("questions");
-    setGateAnswers(noGateAnswers);
-    setDataLossAnswer(null);
-    setForm(initial);
-    setResult(null);
+    clearSession(STORAGE_KEYS.severityDraft, STORAGE_KEYS.severityResult);
   }
 
+  /** Stuft ein und wechselt anschließend auf die Ergebnisseite. */
   async function classify(body: FormState | Record<string, unknown>) {
     setLoading(true);
-    setResult(null);
     try {
       const res = await fetch("/api/severity", {
         method: "POST",
@@ -216,48 +237,50 @@ export default function SeverityPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error ?? "Anfrage fehlgeschlagen.");
       }
-      setResult((await res.json()) as SeverityResult);
+      saveSession(
+        STORAGE_KEYS.severityResult,
+        (await res.json()) as SeverityResult,
+      );
+      router.push("/severity/ergebnis");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unbekannter Fehler.");
-    } finally {
       setLoading(false);
     }
   }
 
-  /**
-   * Sobald alle Vorfragen beantwortet sind, geht es weiter: Bei böswilligem
-   * Zugriff mit möglichem Datenverlust erfolgt die unmittelbare Einstufung als
-   * schwerwiegend (Art. 8 Abs. 1 Buchst. a RTS), andernfalls die Erfassung der
-   * übrigen Kriterien.
-   */
-  function advanceIfComplete(answers: GateAnswers, dataLoss: boolean | null) {
-    if (GATE_QUESTIONS.some((q) => answers[q.key] === null)) return;
-    if (answers.maliciousUnauthorizedAccess === true && dataLoss === null) return;
-    setStage("form");
-  }
-
   // Vorfragen 1a–c: Tatbestände des Art. 6 RTS (Kritikalität der Dienste).
   function answerGate(key: GateKey, value: boolean) {
-    const next = { ...gateAnswers, [key]: value };
-    setGateAnswers(next);
-    setResult(null);
-    const nextDataLoss =
-      key === "maliciousUnauthorizedAccess" ? null : dataLossAnswer;
-    if (key === "maliciousUnauthorizedAccess") setDataLossAnswer(null);
-    setForm((f) => ({
-      ...f,
-      [key]: value,
-      ...(key === "maliciousUnauthorizedAccess"
-        ? { maliciousAccessDataLossPossible: false }
-        : {}),
-    }));
-    advanceIfComplete(next, nextDataLoss);
+    patch((d) => {
+      const answers = { ...d.gateAnswers, [key]: value };
+      // Entfällt die Vorfrage c, entfällt auch die Zusatzfrage dazu.
+      const nextDataLoss =
+        key === "maliciousUnauthorizedAccess" ? null : d.dataLossAnswer;
+      return {
+        ...d,
+        gateAnswers: answers,
+        dataLossAnswer: nextDataLoss,
+        form: {
+          ...d.form,
+          [key]: value,
+          ...(key === "maliciousUnauthorizedAccess"
+            ? { maliciousAccessDataLossPossible: false }
+            : {}),
+        },
+        stage: questionsComplete(answers, nextDataLoss) ? "form" : d.stage,
+      };
+    });
   }
 
   // Vorfrage 2: Kann der böswillige Zugriff zu Datenverlusten führen?
   function answerDataLoss(value: boolean) {
-    setDataLossAnswer(value);
-    setForm((f) => ({ ...f, maliciousAccessDataLossPossible: value }));
+    patch((d) => ({
+      ...d,
+      dataLossAnswer: value,
+      form: { ...d.form, maliciousAccessDataLossPossible: value },
+      // Bei "Ja" folgt die unmittelbare Einstufung, das Formular entfällt.
+      stage:
+        !value && questionsComplete(d.gateAnswers, value) ? "form" : d.stage,
+    }));
     if (value) {
       // Art. 6 Buchst. c + Art. 9 Abs. 5 Buchst. b: unmittelbare Einstufung
       // als schwerwiegend – unabhängig von den übrigen Vorfragen.
@@ -268,92 +291,58 @@ export default function SeverityPage() {
         maliciousUnauthorizedAccess: true,
         maliciousAccessDataLossPossible: true,
       });
-    } else {
-      advanceIfComplete(gateAnswers, value);
     }
   }
 
   function loadScenario(data: FormState) {
-    setForm(data);
-    setGateAnswers({
-      criticalFunctionAffected: data.criticalFunctionAffected,
-      regulatedServicesAffected: data.regulatedServicesAffected,
-      maliciousUnauthorizedAccess: data.maliciousUnauthorizedAccess,
-    });
-    setDataLossAnswer(
-      data.maliciousUnauthorizedAccess
+    saveSession<SeverityDraft>(STORAGE_KEYS.severityDraft, {
+      stage: "form",
+      gateAnswers: {
+        criticalFunctionAffected: data.criticalFunctionAffected,
+        regulatedServicesAffected: data.regulatedServicesAffected,
+        maliciousUnauthorizedAccess: data.maliciousUnauthorizedAccess,
+      },
+      dataLossAnswer: data.maliciousUnauthorizedAccess
         ? data.maliciousAccessDataLossPossible
         : null,
-    );
-    setStage("form");
-    setResult(null);
+      form: data,
+    });
   }
 
   async function onSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    await classify(form);
+    // Unbeantwortete Zusatzfrage zählt als "Nein" (Schwelle nicht erreicht).
+    await classify({
+      ...form,
+      dataLossAdverseImpact: form.dataLossAdverseImpact === true,
+    });
   }
 
-  const metCount = result?.findings.filter((f) => f.thresholdMet).length ?? 0;
-  const tone = result ? CLASSIFICATION[result.classification] : null;
-  const instantResult = stage === "questions" && (result !== null || loading);
   // Steht bereits durch die Vorfragen fest, dass kein schwerwiegender Vorfall
   // vorliegt (kein Tatbestand des Art. 6 RTS erfüllt)?
-  const ruledOutNonMajor =
-    GATE_QUESTIONS.every((q) => gateAnswers[q.key] === false) &&
-    !result &&
-    !loading;
+  const ruledOutNonMajor = GATE_QUESTIONS.every(
+    (q) => gateAnswers[q.key] === false,
+  );
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-primary">
-          Schritt 02
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Schweregrad bestimmen (DORA)
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Beantworten Sie zunächst zwei Vorfragen. Je nach Antwort erfolgt eine
-          unmittelbare Einstufung oder die Erfassung der
-          DORA-Klassifizierungskriterien.
-        </p>
-      </div>
+      <PageHeader
+        step="Schritt 02"
+        title="Schweregrad bestimmen (DORA)"
+        desc="Beantworten Sie zunächst die Vorfragen zur Kritikalität der betroffenen Dienste. Je nach Antwort erfolgt eine unmittelbare Einstufung oder die Erfassung der übrigen DORA-Klassifizierungskriterien. Das Ergebnis erscheint nach dem Absenden auf einer eigenen Seite."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card className="border-border/60 bg-card/70 backdrop-blur">
-          <CardContent className="p-6">
-            {stage === "questions" && instantResult ? (
-              /* Unmittelbare Einstufung über die Vorfragen */
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
-                    {loading ? (
-                      <Loader2 className="size-5 animate-spin" />
-                    ) : (
-                      <ShieldAlert className="size-5" />
-                    )}
-                  </span>
-                  <div className="space-y-0.5">
-                    <h3 className="font-semibold">
-                      {loading
-                        ? "Wird eingestuft …"
-                        : "Schwerwiegender Vorfall"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Erfolgreicher böswilliger unbefugter Zugriff mit möglichem
-                      Datenverlust – unmittelbare Einstufung (Art. 8 Abs. 1
-                      Buchst. a RTS). Details siehe Ergebnis.
-                    </p>
-                  </div>
-                </div>
-                <Button variant="outline" onClick={reset} disabled={loading}>
-                  <RotateCcw className="size-4" />
-                  Neue Bewertung
-                </Button>
+      {stage === "questions" ? (
+        <Card className="mx-auto w-full max-w-3xl border-border/60 bg-card/70 backdrop-blur">
+          <CardContent className="p-6 sm:p-8">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Der Vorfall wird eingestuft …
+                </p>
               </div>
-            ) : stage === "questions" ? (
-              /* Vorfragen */
+            ) : (
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-1">
@@ -418,151 +407,204 @@ export default function SeverityPage() {
                   </div>
                 )}
               </div>
-            ) : (
-              /* Ausführliche Erfassung der DORA-Kriterien */
-              <div className="space-y-5">
-                <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3">
-                  <div className="space-y-0.5 text-sm">
-                    <p className="font-medium">
-                      Vorfragen (Art. 6 RTS)
-                    </p>
-                    <p className="text-muted-foreground">
-                      {GATE_QUESTIONS.map(
-                        (q) =>
-                          `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
-                      ).join(" · ")}
-                      {form.maliciousUnauthorizedAccess &&
-                        ` · Datenverlust möglich: ${
-                          form.maliciousAccessDataLossPossible ? "Ja" : "Nein"
-                        }`}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setStage("questions");
-                      setResult(null);
-                    }}
-                  >
-                    <ArrowLeft className="size-4" />
-                    Ändern
-                  </Button>
-                </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        /* Ausführliche Erfassung der DORA-Kriterien */
+        <Card className="border-border/60 bg-card/70 backdrop-blur">
+          <CardContent className="space-y-5 p-6 sm:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="space-y-0.5 text-sm">
+                <p className="font-medium">Vorfragen (Art. 6 RTS)</p>
+                <p className="text-muted-foreground">
+                  {GATE_QUESTIONS.map(
+                    (q) =>
+                      `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
+                  ).join(" · ")}
+                  {form.maliciousUnauthorizedAccess &&
+                    ` · Datenverlust möglich: ${
+                      form.maliciousAccessDataLossPossible ? "Ja" : "Nein"
+                    }`}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStage("questions")}
+              >
+                <ArrowLeft className="size-4" />
+                Ändern
+              </Button>
+            </div>
 
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-                    <Sparkles className="size-3.5" />
-                    Beispiel laden
-                  </span>
-                  {SEVERITY_SCENARIOS.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      title={s.hint}
-                      onClick={() => loadScenario(s.data)}
-                      className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+            {ruledOutNonMajor && (
+              <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-success/5 p-4">
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                    CLASSIFICATION.non_major.chip,
+                  )}
+                >
+                  <ShieldCheck className="size-5" />
+                </span>
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium">
+                    Vorläufig: {CLASSIFICATION.non_major.label}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
+                    Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
+                    ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie
+                    bei Bedarf die übrigen Angaben zur Dokumentation und
+                    bestätigen Sie mit „Schweregrad bestimmen“.
+                  </p>
                 </div>
+              </div>
+            )}
 
-                <form onSubmit={onSubmit} className="space-y-5">
-                  <Field label="Vorfallbeschreibung" htmlFor="description">
-                    <Textarea
-                      id="description"
-                      required
-                      rows={3}
-                      value={form.description}
-                      onChange={(e) => update("description", e.target.value)}
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+                <Sparkles className="size-3.5" />
+                Beispiel laden
+              </span>
+              {SEVERITY_SCENARIOS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  title={s.hint}
+                  onClick={() => loadScenario(s.data)}
+                  className="rounded-full border border-border/60 bg-background px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            <form onSubmit={onSubmit} className="space-y-4">
+              <FormSection title="Vorfallbeschreibung">
+                <Textarea
+                  id="description"
+                  required
+                  rows={4}
+                  placeholder="Was ist passiert?"
+                  aria-label="Vorfallbeschreibung"
+                  value={form.description}
+                  onChange={(e) => update("description", e.target.value)}
+                />
+              </FormSection>
+
+              <FormSection
+                title="Kunden, Gegenparteien & Transaktionen"
+                article="Art. 1, Art. 9 Abs. 1"
+                hint="Schwelle erreicht ab > 10 % der Dienstnutzer, > 100.000 Kunden, > 30 % der Gegenparteien, > 10 % der täglichen Transaktionen (Anzahl oder Wert) oder bei relevanten Kunden/Gegenparteien. Schätzungen sind zulässig."
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Kunden (Anzahl)" htmlFor="clientsAffected">
+                    <Input
+                      id="clientsAffected"
+                      type="number"
+                      min={0}
+                      placeholder="z. B. 120000"
+                      value={form.clientsAffected}
+                      onChange={(e) =>
+                        update("clientsAffected", e.target.value)
+                      }
                     />
                   </Field>
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <Field
-                      label="Betroffene Kunden (Anzahl)"
-                      htmlFor="clientsAffected"
-                    >
-                      <Input
-                        id="clientsAffected"
-                        type="number"
-                        min={0}
-                        placeholder="z. B. 120000"
-                        value={form.clientsAffected}
-                        onChange={(e) =>
-                          update("clientsAffected", e.target.value)
-                        }
-                      />
-                    </Field>
-                    <Field
-                      label="Betroffene Kunden (% der Nutzer des Dienstes)"
-                      htmlFor="clientsAffectedPercent"
-                    >
-                      <Input
-                        id="clientsAffectedPercent"
-                        type="number"
-                        min={0}
-                        max={100}
-                        placeholder="z. B. 20"
-                        value={form.clientsAffectedPercent}
-                        onChange={(e) =>
-                          update("clientsAffectedPercent", e.target.value)
-                        }
-                      />
-                    </Field>
-                    <Field
-                      label="Betroffene finanzielle Gegenparteien (%)"
-                      htmlFor="counterpartsAffectedPercent"
-                    >
-                      <Input
-                        id="counterpartsAffectedPercent"
-                        type="number"
-                        min={0}
-                        max={100}
-                        placeholder="z. B. 35"
-                        value={form.counterpartsAffectedPercent}
-                        onChange={(e) =>
-                          update("counterpartsAffectedPercent", e.target.value)
-                        }
-                      />
-                    </Field>
-                    <Field
-                      label="Betroffene Transaktionen (% der tägl. Ø-Anzahl)"
-                      htmlFor="transactionsCountPercent"
-                    >
-                      <Input
-                        id="transactionsCountPercent"
-                        type="number"
-                        min={0}
-                        placeholder="z. B. 15"
-                        value={form.transactionsCountPercent}
-                        onChange={(e) =>
-                          update("transactionsCountPercent", e.target.value)
-                        }
-                      />
-                    </Field>
-                    <Field
-                      label="Betroffener Transaktionswert (% des tägl. Ø-Werts)"
-                      htmlFor="transactionsValuePercent"
-                    >
-                      <Input
-                        id="transactionsValuePercent"
-                        type="number"
-                        min={0}
-                        placeholder="z. B. 15"
-                        value={form.transactionsValuePercent}
-                        onChange={(e) =>
-                          update("transactionsValuePercent", e.target.value)
-                        }
-                      />
-                    </Field>
+                  <Field
+                    label="Kunden (% der Dienstnutzer)"
+                    htmlFor="clientsAffectedPercent"
+                  >
+                    <Input
+                      id="clientsAffectedPercent"
+                      type="number"
+                      min={0}
+                      max={100}
+                      placeholder="z. B. 20"
+                      value={form.clientsAffectedPercent}
+                      onChange={(e) =>
+                        update("clientsAffectedPercent", e.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Finanzielle Gegenparteien (%)"
+                    htmlFor="counterpartsAffectedPercent"
+                  >
+                    <Input
+                      id="counterpartsAffectedPercent"
+                      type="number"
+                      min={0}
+                      max={100}
+                      placeholder="z. B. 35"
+                      value={form.counterpartsAffectedPercent}
+                      onChange={(e) =>
+                        update("counterpartsAffectedPercent", e.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Transaktionen (% der tägl. Ø-Anzahl)"
+                    htmlFor="transactionsCountPercent"
+                  >
+                    <Input
+                      id="transactionsCountPercent"
+                      type="number"
+                      min={0}
+                      placeholder="z. B. 15"
+                      value={form.transactionsCountPercent}
+                      onChange={(e) =>
+                        update("transactionsCountPercent", e.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field
+                    label="Transaktionswert (% des tägl. Ø-Werts)"
+                    htmlFor="transactionsValuePercent"
+                  >
+                    <Input
+                      id="transactionsValuePercent"
+                      type="number"
+                      min={0}
+                      placeholder="z. B. 15"
+                      value={form.transactionsValuePercent}
+                      onChange={(e) =>
+                        update("transactionsValuePercent", e.target.value)
+                      }
+                    />
+                  </Field>
+                </div>
+                <TogglePill
+                  active={form.relevantClientsAffected}
+                  title="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt (Art. 1 Abs. 3 RTS) – erreicht die Schwelle für sich genommen."
+                  onClick={() =>
+                    update(
+                      "relevantClientsAffected",
+                      !form.relevantClientsAffected,
+                    )
+                  }
+                >
+                  Relevante Kunden/Gegenparteien betroffen
+                </TogglePill>
+              </FormSection>
+
+              <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+                <FormSection
+                  title="Dauer & Ausfallzeit"
+                  article="Art. 3, Art. 9 Abs. 3"
+                  hint="Schwelle: Dauer über 24 Stunden oder Ausfallzeit über 2 Stunden bei IKT-Diensten kritischer/wichtiger Funktionen."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Dauer (Stunden)" htmlFor="durationHours">
                       <Input
                         id="durationHours"
                         type="number"
                         min={0}
                         value={form.durationHours}
-                        onChange={(e) => update("durationHours", e.target.value)}
+                        onChange={(e) =>
+                          update("durationHours", e.target.value)
+                        }
                       />
                     </Field>
                     <Field
@@ -574,11 +616,22 @@ export default function SeverityPage() {
                         type="number"
                         min={0}
                         value={form.downtimeHours}
-                        onChange={(e) => update("downtimeHours", e.target.value)}
+                        onChange={(e) =>
+                          update("downtimeHours", e.target.value)
+                        }
                       />
                     </Field>
+                  </div>
+                </FormSection>
+
+                <FormSection
+                  title="Geografische Ausbreitung"
+                  article="Art. 4, Art. 9 Abs. 4"
+                  hint="Schwelle: Auswirkungen in mindestens zwei Mitgliedstaaten, sofern dort Kunden/Gegenparteien, Gruppenunternehmen oder Marktinfrastrukturen erheblich betroffen sind."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <Field
-                      label="Betroffene Mitgliedstaaten"
+                      label="Mitgliedstaaten mit Auswirkungen"
                       htmlFor="memberStatesAffected"
                     >
                       <Input
@@ -588,7 +641,7 @@ export default function SeverityPage() {
                         value={form.memberStatesAffected}
                         onChange={(e) => {
                           const value = e.target.value;
-                          setForm((f) => ({
+                          updateForm((f) => ({
                             ...f,
                             memberStatesAffected: value,
                             // Unter zwei Mitgliedstaaten ist die Zusatzfrage
@@ -599,302 +652,136 @@ export default function SeverityPage() {
                         }}
                       />
                     </Field>
-                    <Field
-                      label="Wirtschaftl. Schaden (EUR)"
-                      htmlFor="economicImpactEur"
-                    >
-                      <Input
-                        id="economicImpactEur"
-                        type="number"
-                        min={0}
-                        value={form.economicImpactEur}
-                        onChange={(e) =>
-                          update("economicImpactEur", e.target.value)
-                        }
-                      />
-                    </Field>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Lassen sich tatsächliche Zahlen nicht ermitteln, sind
-                    Schätzungen auf Basis vergleichbarer Referenzzeiträume
-                    zulässig (Art. 9 Abs. 1 RTS).
-                  </p>
                   {Number(form.memberStatesAffected) >= 2 && (
                     <div className="space-y-2">
-                      <Label>Grenzüberschreitende Auswirkungen</Label>
+                      <Label>Erheblich betroffene Bereiche</Label>
                       <div className="flex flex-wrap gap-2">
-                        {GEO_IMPACT_AREAS.map((a) => {
-                          const active = form.geoImpactAreas.includes(a.id);
-                          return (
-                            <button
-                              key={a.id}
-                              type="button"
-                              title={a.hint}
-                              aria-pressed={active}
-                              onClick={() => toggleGeoArea(a.id)}
-                              className={cn(
-                                "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                                active
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
-                              )}
-                            >
-                              {a.label}
-                            </button>
-                          );
-                        })}
+                        {GEO_IMPACT_AREAS.map((a) => (
+                          <TogglePill
+                            key={a.id}
+                            active={form.geoImpactAreas.includes(a.id)}
+                            title={a.hint}
+                            onClick={() => toggleGeoArea(a.id)}
+                          >
+                            {a.label}
+                          </TogglePill>
+                        ))}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Bereiche mit erheblichen Auswirkungen in anderen
-                        Mitgliedstaaten auswählen (Art. 4 Buchst. a–c RTS). Die
-                        Schwelle „Geografische Ausbreitung“ ist nur erreicht,
-                        wenn neben ≥ 2 betroffenen Mitgliedstaaten mindestens
-                        ein Bereich erheblich betroffen ist (Art. 9 Abs. 4 RTS).
-                      </p>
                     </div>
                   )}
-                  <div className="space-y-2">
-                    <Label>Relevante Kunden oder Gegenparteien</Label>
-                    <button
-                      type="button"
-                      aria-pressed={form.relevantClientsAffected}
-                      onClick={() =>
-                        update(
-                          "relevantClientsAffected",
-                          !form.relevantClientsAffected,
-                        )
-                      }
-                      className={cn(
-                        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                        form.relevantClientsAffected
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
-                      )}
-                    >
-                      Als relevant identifizierte Kunden/Gegenparteien betroffen
-                    </button>
-                    <p className="text-xs text-muted-foreground">
-                      Kunden oder Gegenparteien, deren Beeinträchtigung die
-                      Geschäftsziele oder die Markteffizienz berührt (Art. 1
-                      Abs. 3 RTS) – erreicht die Schwelle für sich genommen
-                      (Art. 9 Abs. 1 Buchst. f).
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Datenverluste</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {DATA_LOSS_DIMENSIONS.map((d) => {
-                        const active = form.dataLossDimensions.includes(d.id);
-                        return (
-                          <button
-                            key={d.id}
-                            type="button"
-                            title={d.hint}
-                            aria-pressed={active}
-                            onClick={() => toggleDataLoss(d.id)}
-                            className={cn(
-                              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                              active
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
-                            )}
-                          >
-                            {d.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Betroffene Schutzziele auswählen (Art. 5 RTS). Die
-                      Schwelle ist erst erreicht, wenn die Beeinträchtigung
-                      zudem nachteilige Auswirkungen auf die Geschäftsziele
-                      oder die Erfüllung regulatorischer Anforderungen hat oder
-                      haben wird (Art. 9 Abs. 5 Buchst. a RTS).
-                    </p>
-                    {form.dataLossDimensions.length > 0 && (
-                      <div className="space-y-2 pt-1">
-                        <button
-                          type="button"
-                          aria-pressed={form.dataLossAdverseImpact}
-                          onClick={() =>
-                            update(
-                              "dataLossAdverseImpact",
-                              !form.dataLossAdverseImpact,
-                            )
-                          }
-                          className={cn(
-                            "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                            form.dataLossAdverseImpact
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
-                          )}
-                        >
-                          Nachteilige Auswirkungen auf Geschäftsziele oder
-                          regulatorische Anforderungen
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Reputationsauswirkung</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {REPUTATION_CONDITIONS.map((c) => {
-                        const active =
-                          form.reputationalImpactConditions.includes(c.id);
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            title={c.hint}
-                            aria-pressed={active}
-                            onClick={() => toggleReputation(c.id)}
-                            className={cn(
-                              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                              active
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
-                            )}
-                          >
-                            {c.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Erfüllte Bedingungen des Art. 2 Abs. 1 RTS auswählen – die
-                      Schwelle ist erreicht, sobald mindestens eine Bedingung
-                      erfüllt ist (Art. 9 Abs. 2 RTS). Berücksichtigen Sie die
-                      bereits erlangte oder zu erwartende Sichtbarkeit des
-                      Vorfalls (Art. 2 Abs. 2 RTS).
-                    </p>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {loading && <Loader2 className="size-4 animate-spin" />}
-                    Schweregrad bestimmen
-                  </Button>
-                </form>
+                </FormSection>
               </div>
-            )}
+
+              <FormSection
+                title="Datenverluste"
+                article="Art. 5, Art. 9 Abs. 5"
+                hint="Schwelle: beeinträchtigtes Schutzziel mit nachteiligen Folgen für Geschäftsziele oder regulatorische Pflichten."
+              >
+                <div className="flex flex-wrap gap-2">
+                  {DATA_LOSS_DIMENSIONS.map((d) => (
+                    <TogglePill
+                      key={d.id}
+                      active={form.dataLossDimensions.includes(d.id)}
+                      title={d.hint}
+                      onClick={() => toggleDataLoss(d.id)}
+                    >
+                      {d.label}
+                    </TogglePill>
+                  ))}
+                </div>
+                {form.dataLossDimensions.length > 0 && (
+                  <div className="space-y-3 rounded-lg border border-border/60 bg-background/60 p-3">
+                    <p className="text-sm font-medium">
+                      Hat oder wird die Beeinträchtigung nachteilige
+                      Auswirkungen auf die Geschäftsziele oder die Erfüllung
+                      regulatorischer Anforderungen haben?
+                    </p>
+                    <div className="flex gap-2 sm:max-w-sm">
+                      <ChoiceButton
+                        selected={form.dataLossAdverseImpact === true}
+                        onClick={() => update("dataLossAdverseImpact", true)}
+                      >
+                        Ja
+                      </ChoiceButton>
+                      <ChoiceButton
+                        selected={form.dataLossAdverseImpact === false}
+                        onClick={() => update("dataLossAdverseImpact", false)}
+                      >
+                        Nein
+                      </ChoiceButton>
+                    </div>
+                  </div>
+                )}
+              </FormSection>
+
+              <FormSection
+                title="Reputationsauswirkung"
+                article="Art. 2, Art. 9 Abs. 2"
+                hint="Schwelle erreicht, sobald mindestens eine Bedingung erfüllt ist – auch die zu erwartende Sichtbarkeit des Vorfalls zählt."
+              >
+                <div className="flex flex-wrap gap-2">
+                  {REPUTATION_CONDITIONS.map((c) => (
+                    <TogglePill
+                      key={c.id}
+                      active={form.reputationalImpactConditions.includes(c.id)}
+                      title={c.hint}
+                      onClick={() => toggleReputation(c.id)}
+                    >
+                      {c.label}
+                    </TogglePill>
+                  ))}
+                </div>
+              </FormSection>
+
+              <FormSection
+                title="Wirtschaftliche Auswirkung"
+                article="Art. 7, Art. 9 Abs. 6"
+                hint="Schwelle: Kosten und Verluste über 100.000 EUR – brutto, ohne Verrechnung von Rückflüssen; laufende Betriebskosten zählen nicht."
+              >
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field
+                    label="Kosten und Verluste (EUR)"
+                    htmlFor="economicImpactEur"
+                  >
+                    <Input
+                      id="economicImpactEur"
+                      type="number"
+                      min={0}
+                      placeholder="z. B. 250000"
+                      value={form.economicImpactEur}
+                      onChange={(e) =>
+                        update("economicImpactEur", e.target.value)
+                      }
+                    />
+                  </Field>
+                </div>
+              </FormSection>
+
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={reset}
+                  disabled={loading}
+                >
+                  <RotateCcw className="size-4" />
+                  Neue Bewertung
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  size="lg"
+                  className="w-full sm:w-auto sm:min-w-64"
+                >
+                  {loading && <Loader2 className="size-4 animate-spin" />}
+                  Schweregrad bestimmen
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
-
-        <div>
-          {!result && !ruledOutNonMajor && (
-            <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/20 p-8 text-center">
-              <ListChecks className="size-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">
-                Das Ergebnis erscheint hier nach der Einstufung.
-              </p>
-            </div>
-          )}
-
-          {ruledOutNonMajor && (
-            <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
-              <div
-                className={cn(
-                  "absolute inset-x-0 top-0 h-1",
-                  CLASSIFICATION.non_major.bar,
-                )}
-              />
-              <CardContent className="space-y-4 p-6">
-                <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "flex size-10 items-center justify-center rounded-xl",
-                      CLASSIFICATION.non_major.chip,
-                    )}
-                  >
-                    <ShieldCheck className="size-5" />
-                  </span>
-                  <div className="space-y-0.5">
-                    <h3 className="font-semibold">
-                      {CLASSIFICATION.non_major.label}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Vorläufige Einstufung anhand der Vorfragen
-                    </p>
-                  </div>
-                </div>
-                <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
-                  Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
-                  Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
-                  ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie
-                  bei Bedarf die übrigen Angaben zur Dokumentation und bestätigen
-                  Sie mit „Schweregrad bestimmen“.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {result && tone && (
-            <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
-              <div className={cn("absolute inset-x-0 top-0 h-1", tone.bar)} />
-              <CardContent className="space-y-5 p-6">
-                <div className="flex items-start gap-3">
-                  <span
-                    className={cn(
-                      "flex size-10 items-center justify-center rounded-xl",
-                      tone.chip,
-                    )}
-                  >
-                    <tone.icon className="size-5" />
-                  </span>
-                  <div className="space-y-0.5">
-                    <h3 className="font-semibold">{tone.label}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {metCount} von {result.findings.length} Kriterien erreichen
-                      die Schwelle
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="ml-auto">
-                    {(result.confidence * 100).toFixed(0)} %
-                  </Badge>
-                </div>
-
-                <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
-                  {result.summary}
-                </p>
-
-                <ul className="space-y-2.5">
-                  {result.findings.map((f) => {
-                    const crit = CRITERION_BY_ID[f.criterionId];
-                    return (
-                      <li
-                        key={f.criterionId}
-                        className="rounded-lg border border-border/50 p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium">
-                            {crit.label}
-                          </span>
-                          <span
-                            className={cn(
-                              "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                              f.thresholdMet
-                                ? "bg-destructive/10 text-destructive"
-                                : "bg-muted text-muted-foreground",
-                            )}
-                          >
-                            {f.thresholdMet ? "Schwelle erreicht" : "unkritisch"}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {f.assessment}
-                        </p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -938,5 +825,71 @@ function Field({
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
     </div>
+  );
+}
+
+/**
+ * Abschnitt je DORA-Kriterium: Titel, RTS-Fundstelle und eine kompakte
+ * Schwellen-Zusammenfassung – Details stehen in den Tooltips der Optionen.
+ */
+function FormSection({
+  title,
+  article,
+  hint,
+  children,
+}: {
+  title: string;
+  article?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="h-full space-y-4 rounded-xl border border-border/50 bg-muted/20 p-4 sm:p-5">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+          {article && (
+            <span className="shrink-0 rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {article} RTS
+            </span>
+          )}
+        </div>
+        {hint && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {hint}
+          </p>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function TogglePill({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3.5 py-1.5 text-left text-sm font-medium transition-colors",
+        active
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-border/60 bg-background hover:border-primary/40 hover:bg-muted",
+      )}
+    >
+      {children}
+    </button>
   );
 }
