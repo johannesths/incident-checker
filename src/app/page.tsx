@@ -40,7 +40,7 @@ export default function Home() {
       {/* Hero */}
       <section className="space-y-6 pt-6 text-center">
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-          Klassifizierung von{" "}
+          Identifizierung und Klassifizierung von{" "}
           <span className="bg-linear-to-r from-primary to-violet-500 bg-clip-text text-transparent">
             IKT-bezogenen Vorfällen
           </span>
