@@ -48,25 +48,10 @@ export default function Home() {
         <p className="mx-auto max-w-2xl text-pretty text-muted-foreground sm:text-lg">
           Diese Anwendung unterstützt Finanzunternehmen dabei, mögliche
           IKT-bezogene Vorfälle nach den Vorgaben der EU-Verordnung DORA
-          einzuordnen: Erfassen Sie ein Ereignis, prüfen Sie die Zuständigkeit
-          und bestimmen Sie den Schweregrad – nachvollziehbar und in zwei klaren
-          Schritten.
+          einzuordnen: Erfassen Sie ein Ereignis, prüfen Sie die Zuständigkeit,
+          bestimmen Sie den Schweregrad und melden Sie den Vorfall –
+          nachvollziehbar und in drei klaren Schritten.
         </p>
-        <div className="flex items-center justify-center gap-3 pt-2">
-          <Link
-            href="/triage"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-primary/25 transition-transform hover:scale-[1.02]"
-          >
-            Vorfall prüfen
-            <ArrowRight className="size-4" />
-          </Link>
-          <Link
-            href="/severity"
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-background/60 px-5 py-2.5 text-sm font-medium backdrop-blur transition-colors hover:bg-muted"
-          >
-            Schweregrad bestimmen
-          </Link>
-        </div>
       </section>
 
       {/* Schritte */}
