@@ -15,6 +15,8 @@ export const STORAGE_KEYS = {
   triageResult: "indincident:triage:result",
   severityDraft: "indincident:severity:draft",
   severityResult: "indincident:severity:result",
+  reportDraft: "indincident:report:draft",
+  reportReceipt: "indincident:report:receipt",
 } as const;
 
 const listeners = new Set<() => void>();

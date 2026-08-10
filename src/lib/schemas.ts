@@ -9,6 +9,7 @@ import {
   type ReputationCondition,
   type GeoImpactArea,
 } from "@/lib/dora/criteria";
+import { REPORT_TYPES, type ReportType } from "@/lib/dora/reporting";
 
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
 
@@ -26,6 +27,13 @@ const geoImpactIds = GEO_IMPACT_AREAS.map((a) => a.id) as [
   GeoImpactArea,
   ...GeoImpactArea[],
 ];
+
+const reportTypeIds = REPORT_TYPES.map((t) => t.id) as [
+  ReportType,
+  ...ReportType[],
+];
+
+const classificationIds = ["major", "non_major", "indeterminate"] as const;
 
 /* ---------------------------------------------------------------------------
  * Funktion 1: Triage – Handelt es sich um einen IKT-bezogenen Vorfall?
@@ -167,7 +175,7 @@ export type CriterionFinding = z.infer<typeof criterionFindingSchema>;
 
 export const severityResultSchema = z.object({
   /** Gesamteinstufung gemäß DORA. */
-  classification: z.enum(["major", "non_major", "indeterminate"]),
+  classification: z.enum(classificationIds),
   /** Befunde je Einzelkriterium. */
   findings: z.array(criterionFindingSchema),
   /** Zusammenfassende Begründung. */
@@ -176,3 +184,85 @@ export const severityResultSchema = z.object({
 });
 
 export type SeverityResult = z.infer<typeof severityResultSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Funktion 3: Meldung an die zuständige Behörde (BaFin), Art. 19 DORA
+ * ------------------------------------------------------------------------- */
+
+export const reportInputSchema = z.object({
+  /** Erst-, Zwischen- oder Abschlussmeldung (Art. 19 Abs. 4 DORA). */
+  reportType: z.enum(reportTypeIds),
+  /** Meldendes Finanzunternehmen. */
+  institutionName: z.string().min(1, "Bitte geben Sie das Finanzunternehmen an."),
+  /** Rechtsträgerkennung (Legal Entity Identifier), 20 alphanumerische Zeichen. */
+  lei: z
+    .string()
+    .regex(/^[A-Z0-9]{20}$/, "Der LEI besteht aus 20 alphanumerischen Zeichen."),
+  /** Ansprechpartner für Rückfragen der Behörde. */
+  contactName: z.string().min(1, "Bitte geben Sie einen Ansprechpartner an."),
+  contactEmail: z.email("Bitte geben Sie eine gültige E-Mail-Adresse an."),
+  contactPhone: z.string().optional().default(""),
+  /** Interne Referenz des Vorfalls (verknüpft Folgemeldungen). */
+  incidentReference: z
+    .string()
+    .min(1, "Bitte geben Sie eine interne Vorfallreferenz an."),
+  /** Zeitpunkt der Kenntniserlangung – Ausgangspunkt der 24-Stunden-Frist. */
+  detectedAt: z
+    .string()
+    .min(1, "Bitte geben Sie den Zeitpunkt der Kenntniserlangung an.")
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Ungültiger Zeitpunkt."),
+  /** Zeitpunkt des Auftretens, soweit bekannt. */
+  occurredAt: z
+    .string()
+    .optional()
+    .default("")
+    .refine(
+      (v) => v === "" || !Number.isNaN(Date.parse(v)),
+      "Ungültiger Zeitpunkt.",
+    ),
+  /** Sachverhaltsdarstellung. */
+  description: z
+    .string()
+    .min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
+  /** Vorgangsnummer der vorangegangenen Meldung (bei Folgemeldungen). */
+  previousSubmissionId: z.string().optional().default(""),
+  /** Einstufung aus Schritt 02. */
+  classification: z.enum(classificationIds),
+  /** Kriterien, deren Materialitätsschwelle erreicht ist. */
+  criteriaMet: z.array(z.enum(criterionIds)).optional().default([]),
+  /** Freiwillige Meldung ohne Meldepflicht (Art. 19 Abs. 2 DORA). */
+  voluntary: z.boolean().optional().default(false),
+});
+
+export type ReportInput = z.infer<typeof reportInputSchema>;
+
+export const reportDeadlineSchema = z.object({
+  reportType: z.enum(reportTypeIds),
+  /** Fälligkeit als ISO-Zeitstempel. */
+  dueAt: z.string(),
+  /** Fundstelle der Frist. */
+  basis: z.string(),
+});
+
+export type ReportDeadline = z.infer<typeof reportDeadlineSchema>;
+
+export const reportReceiptSchema = z.object({
+  /** Vorgangsnummer der (simulierten) Einreichung. */
+  submissionId: z.string(),
+  submittedAt: z.string(),
+  reportType: z.enum(reportTypeIds),
+  /**
+   * "simulated": Die Meldung wurde nicht übermittelt. Ein echter Konnektor
+   * würde hier den von der Behörde bestätigten Status liefern.
+   */
+  status: z.literal("simulated"),
+  /** Bezeichnung des (simulierten) Übertragungswegs. */
+  channel: z.string(),
+  notice: z.string(),
+  /** Fristen, die nach dieser Meldung noch laufen. */
+  nextDeadlines: z.array(reportDeadlineSchema),
+  institutionName: z.string(),
+  incidentReference: z.string(),
+});
+
+export type ReportReceipt = z.infer<typeof reportReceiptSchema>;

@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const NAV = [
   { href: "/triage", label: "Triage" },
   { href: "/severity", label: "Schweregrad" },
+  { href: "/meldung", label: "Meldung" },
 ];
 
 export function SiteHeader() {

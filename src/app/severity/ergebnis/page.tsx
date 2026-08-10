@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ListChecks, RotateCcw } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Clock,
+  ListChecks,
+  RotateCcw,
+  SendHorizonal,
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +17,10 @@ import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { CRITERION_BY_ID } from "@/lib/dora/criteria";
 import { CLASSIFICATION } from "@/lib/dora/presentation";
+import {
+  REPORT_TYPE_BY_ID,
+  getReportObligation,
+} from "@/lib/dora/reporting";
 import {
   STORAGE_KEYS,
   clearSession,
@@ -48,6 +59,7 @@ export default function SeverityResultPage() {
 
   const tone = CLASSIFICATION[result.classification];
   const metCount = result.findings.filter((f) => f.thresholdMet).length;
+  const obligation = getReportObligation(result.classification);
 
   return (
     <div className="space-y-8">
@@ -85,6 +97,54 @@ export default function SeverityResultPage() {
             {result.summary}
           </p>
 
+          {/*
+            Meldepflichtige Vorfälle führen unmittelbar weiter zu Schritt 03 –
+            die Erstmeldung ist innerhalb weniger Stunden abzugeben
+            (Art. 19 Abs. 4 Buchst. a DORA).
+          */}
+          {obligation.level !== "none" && (
+            <div
+              className={cn(
+                "space-y-3 rounded-lg border p-4",
+                obligation.level === "required"
+                  ? "border-destructive/30 bg-destructive/5"
+                  : "border-warning/30 bg-warning/5",
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                    obligation.level === "required"
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-warning/15 text-warning",
+                  )}
+                >
+                  <SendHorizonal className="size-5" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">{obligation.label}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {obligation.explanation}
+                  </p>
+                </div>
+              </div>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock className="size-3.5 shrink-0" />
+                {REPORT_TYPE_BY_ID.initial.label}:{" "}
+                {REPORT_TYPE_BY_ID.initial.deadline} (
+                {REPORT_TYPE_BY_ID.initial.article}).
+              </p>
+              <Link
+                href="/meldung"
+                className={cn(buttonVariants({ size: "lg" }), "w-full gap-1.5")}
+              >
+                Meldung an die BaFin vorbereiten
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          )}
+
           <div className="space-y-3">
             <h3 className="text-sm font-semibold tracking-tight">
               Einzelkriterien
@@ -120,6 +180,31 @@ export default function SeverityResultPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Ohne Meldepflicht bleibt die freiwillige Meldung als Angebot stehen. */}
+      {obligation.level === "none" && (
+        <div className="flex flex-col gap-4 rounded-xl border border-border/60 bg-card/70 p-5 backdrop-blur sm:flex-row sm:items-center">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success">
+            <SendHorizonal className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-semibold">{obligation.label}</p>
+            <p className="text-sm text-muted-foreground">
+              {obligation.explanation}
+            </p>
+          </div>
+          <Link
+            href="/meldung"
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "shrink-0 gap-1.5",
+            )}
+          >
+            Meldung ansehen
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <Link

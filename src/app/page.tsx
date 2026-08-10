@@ -2,8 +2,8 @@ import Link from "next/link";
 import {
   ArrowRight,
   ListChecks,
+  SendHorizonal,
   ShieldQuestion,
-  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -24,6 +24,14 @@ const STEPS = [
     desc: "Einstufung eines bestätigten Vorfalls als schwerwiegend anhand der DORA-Klassifizierungskriterien – je Einzelkriterium transparent aufgeschlüsselt, ob die Materialitätsschwelle erreicht ist.",
     accent: "from-violet-500 to-fuchsia-500",
   },
+  {
+    href: "/meldung",
+    step: "03",
+    icon: SendHorizonal,
+    title: "Meldung (BaFin)",
+    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Erst-, Zwischen- oder Abschlussmeldung samt Fristen. Hinweis: Die Übermittlung ist derzeit simuliert – eine Schnittstelle der BaFin ist nicht angebunden.",
+    accent: "from-fuchsia-500 to-rose-500",
+  },
 ];
 
 export default function Home() {
@@ -31,10 +39,6 @@ export default function Home() {
     <div className="space-y-14">
       {/* Hero */}
       <section className="space-y-6 pt-6 text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/50 px-3.5 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur">
-          <Sparkles className="size-3.5 text-primary" />
-          KI-gestützte Auswertung folgt
-        </span>
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
           Klassifizierung von{" "}
           <span className="bg-linear-to-r from-primary to-violet-500 bg-clip-text text-transparent">
@@ -66,7 +70,7 @@ export default function Home() {
       </section>
 
       {/* Schritte */}
-      <section className="grid gap-5 sm:grid-cols-2">
+      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {STEPS.map(({ href, step, icon: Icon, title, desc, accent }) => (
           <Link key={href} href={href} className="group">
             <Card className="relative h-full overflow-hidden border-border/60 bg-card/70 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5">
