@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldHalf } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 const NAV = [
   { href: "/triage", label: "Triage" },
@@ -19,12 +18,12 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Link href="/" className="group flex items-center gap-3">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-linear-to-br from-primary to-violet-500 text-primary-foreground shadow-sm shadow-primary/30 transition-transform group-hover:scale-105">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-linear-to-br from-[var(--tone-orange-500)] to-[var(--tone-orange-400)] text-primary-foreground shadow-sm shadow-primary/30 transition-transform group-hover:scale-105">
             <ShieldHalf className="size-6" />
           </span>
           <span className="flex flex-col leading-none">
             <span className="text-base font-semibold tracking-tight">
-              IKT-bezogener Vorfall
+              IndIncident
             </span>
             <span className="text-xs text-muted-foreground">
               Klassifizierung &amp; DORA
@@ -32,9 +31,8 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <div className="flex items-center gap-3">
-          <nav className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 text-sm">
-            {NAV.map((item) => {
+        <nav className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 p-1 text-sm">
+          {NAV.map((item) => {
             // Unterseiten (z. B. /triage/ergebnis) markieren denselben Schritt.
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -48,14 +46,12 @@ export function SiteHeader() {
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <ThemeToggle />
-        </div>
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </header>
   );
