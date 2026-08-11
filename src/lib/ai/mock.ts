@@ -172,17 +172,26 @@ export class MockSeverityService implements SeverityService {
         case "data_losses": {
           const dims = input.dataLossDimensions ?? [];
           const adverseImpact = Boolean(input.dataLossAdverseImpact);
+          // Art. 9 Abs. 5 Buchst. b: Ein böswilliger unbefugter Zugriff, der zu
+          // Datenverlusten führen kann, erreicht die Schwelle für sich genommen
+          // – unabhängig von den angegebenen Schutzzielen.
+          const accessWithDataLossRisk =
+            Boolean(input.maliciousUnauthorizedAccess) &&
+            Boolean(input.maliciousAccessDataLossPossible);
           // Art. 9 Abs. 5 Buchst. a: Beeinträchtigung allein genügt nicht –
           // erst nachteilige Auswirkungen auf Geschäftsziele oder
           // regulatorische Anforderungen erreichen die Schwelle.
-          thresholdMet = dims.length > 0 && adverseImpact;
-          assessment =
+          thresholdMet = (dims.length > 0 && adverseImpact) || accessWithDataLossRisk;
+          const dimensionNote =
             dims.length === 0
               ? "Keine Datenbeeinträchtigung angegeben."
               : `Beeinträchtigt: ${dims.map((d) => DATA_LOSS_LABEL[d]).join(", ")} – ` +
                 (adverseImpact
                   ? "mit nachteiligen Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Art. 9 Abs. 5 Buchst. a erfüllt)."
                   : "ohne nachteilige Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Schwelle nicht erreicht).");
+          assessment = accessWithDataLossRisk
+            ? `${dimensionNote} Böswilliger unbefugter Zugriff mit möglichem Datenverlust – Schwelle erreicht (Art. 9 Abs. 5 Buchst. b RTS).`
+            : dimensionNote;
           break;
         }
         case "critical_services": {

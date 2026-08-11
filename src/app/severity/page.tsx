@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -184,6 +185,18 @@ function num(value: string): string | null {
   return Number.isFinite(parsed) ? nf.format(parsed) : value;
 }
 
+/**
+ * Die Ausfallzeit (Art. 3 Abs. 2 RTS) ist Teil der Gesamtdauer (Abs. 1) und
+ * kann sie nicht überschreiten – ein Hinweis auf einen Eingabefehler.
+ */
+function downtimeExceedsDuration(f: FormState): boolean {
+  if (f.durationHours === "" || f.downtimeHours === "") return false;
+  const duration = Number(f.durationHours);
+  const downtime = Number(f.downtimeHours);
+  if (!Number.isFinite(duration) || !Number.isFinite(downtime)) return false;
+  return downtime > duration;
+}
+
 function labelsOf(
   items: readonly { id: string; label: string }[],
   ids: readonly string[],
@@ -239,6 +252,8 @@ const STEPS: StepDef[] = [
       if (duration) parts.push(`Dauer ${duration} h`);
       const downtime = num(f.downtimeHours);
       if (downtime) parts.push(`Ausfallzeit ${downtime} h`);
+      // Auch im eingeklappten Zustand sichtbar halten.
+      if (downtimeExceedsDuration(f)) parts.push("Angaben prüfen");
       return parts.join(" · ");
     },
     clear: (f) => ({ ...f, durationHours: "", downtimeHours: "" }),
@@ -654,29 +669,40 @@ export default function SeverityPage() {
 
       case "duration":
         return (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Dauer (Stunden)" htmlFor="durationHours">
-              <Input
-                id="durationHours"
-                type="number"
-                min={0}
-                value={form.durationHours}
-                onChange={(e) => update("durationHours", e.target.value)}
-              />
-            </Field>
-            <Field
-              label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
-              htmlFor="downtimeHours"
-            >
-              <Input
-                id="downtimeHours"
-                type="number"
-                min={0}
-                value={form.downtimeHours}
-                onChange={(e) => update("downtimeHours", e.target.value)}
-              />
-            </Field>
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Dauer (Stunden)" htmlFor="durationHours">
+                <Input
+                  id="durationHours"
+                  type="number"
+                  min={0}
+                  value={form.durationHours}
+                  onChange={(e) => update("durationHours", e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
+                htmlFor="downtimeHours"
+              >
+                <Input
+                  id="downtimeHours"
+                  type="number"
+                  min={0}
+                  value={form.downtimeHours}
+                  onChange={(e) => update("downtimeHours", e.target.value)}
+                />
+              </Field>
+            </div>
+            {downtimeExceedsDuration(form) && (
+              <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
+                <span className="text-muted-foreground">
+                  Die Ausfallzeit ist Teil der Gesamtdauer (Art. 3 RTS) und kann
+                  diese nicht überschreiten. Bitte prüfen Sie die Angaben.
+                </span>
+              </p>
+            )}
+          </>
         );
 
       case "geography":
