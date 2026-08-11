@@ -65,6 +65,8 @@
   --radius-4xl: calc(var(--radius) * 2.6);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-button: var(--button);
+  --color-button-foreground: var(--button-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
 }
@@ -116,6 +118,9 @@
   --ring: var(--tone-orange-500);
   --brand: var(--tone-orange-500);
   --brand-foreground: var(--tone-ink);
+  /* Flächige Schaltflächen eine Stufe heller als Linien, Marke und Fokusring. */
+  --button: var(--tone-orange-400);
+  --button-foreground: var(--tone-ink);
   --success: #157f4c;
   --warning: #b45309;
   --chart-1: var(--tone-orange-500);
