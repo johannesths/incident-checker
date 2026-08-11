@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { CRITERION_BY_ID } from "@/lib/dora/criteria";
@@ -88,9 +87,6 @@ export default function SeverityResultPage() {
                 Schwelle
               </p>
             </div>
-            <Badge variant="secondary" className="ml-auto shrink-0">
-              Konfidenz {(result.confidence * 100).toFixed(0)} %
-            </Badge>
           </div>
 
           <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
