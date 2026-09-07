@@ -128,8 +128,7 @@ export default function SeverityResultPage() {
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Clock className="size-3.5 shrink-0" />
                 {REPORT_TYPE_BY_ID.initial.label}:{" "}
-                {REPORT_TYPE_BY_ID.initial.deadline} (
-                {REPORT_TYPE_BY_ID.initial.article}).
+                {REPORT_TYPE_BY_ID.initial.deadline}.
               </p>
               <Link
                 href="/meldung"

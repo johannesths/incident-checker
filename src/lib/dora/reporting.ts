@@ -31,7 +31,6 @@ export type SubmissionKind = "incident" | "cyber_threat";
 export interface SubmissionKindDef {
   id: SubmissionKind;
   label: string;
-  article: string;
   description: string;
 }
 
@@ -39,14 +38,12 @@ export const SUBMISSION_KINDS: SubmissionKindDef[] = [
   {
     id: "incident",
     label: "Meldung eines schwerwiegenden Vorfalls",
-    article: "Art. 19 Abs. 1 DORA",
     description:
       "Pflichtmeldung eines als schwerwiegend eingestuften IKT-bezogenen Vorfalls, als Erst-, Zwischen- oder Abschlussmeldung.",
   },
   {
     id: "cyber_threat",
     label: "Freiwillige Meldung einer erheblichen Cyberbedrohung",
-    article: "Art. 19 Abs. 2 DORA",
     description:
       "Freiwillige Meldung einer als erheblich eingestuften Cyberbedrohung. Sie hat einen eigenen, kürzeren Inhalt (Art. 6 des RTS).",
   },
@@ -61,10 +58,8 @@ export const SUBMISSION_KIND_BY_ID: Record<SubmissionKind, SubmissionKindDef> =
 export interface ReportTypeDef {
   id: ReportType;
   label: string;
-  /** Frist in Klartext. */
+  /** Frist in Klartext (Art. 5 Abs. 1). */
   deadline: string;
-  /** Fundstelle der Frist. */
-  article: string;
   description: string;
   /**
    * Artikel des RTS, deren Inhalte diese Meldung umfasst.
@@ -84,7 +79,6 @@ export const REPORT_TYPES: ReportTypeDef[] = [
     label: "Erstmeldung",
     deadline:
       "so früh wie möglich, in jedem Fall binnen 4 Stunden nach der Einstufung als schwerwiegend und spätestens 24 Stunden nach Kenntniserlangung",
-    article: "Art. 5 Abs. 1 Buchst. a",
     description:
       "Erste Unterrichtung der Behörde über den eingestuften Vorfall mit den zu diesem Zeitpunkt verfügbaren Angaben.",
     articles: [1, 2],
@@ -94,7 +88,6 @@ export const REPORT_TYPES: ReportTypeDef[] = [
     label: "Zwischenmeldung",
     deadline:
       "spätestens 72 Stunden nach Übermittlung der Erstmeldung – auch wenn sich Status oder Handhabung des Vorfalls nicht geändert haben",
-    article: "Art. 5 Abs. 1 Buchst. b",
     description:
       "Ausführlichere Angaben zum Vorfall. Aktualisierte Zwischenmeldungen sind unverzüglich zu übermitteln, jedenfalls sobald der reguläre Geschäftsbetrieb wiederaufgenommen wurde.",
     articles: [1, 3],
@@ -104,7 +97,6 @@ export const REPORT_TYPES: ReportTypeDef[] = [
     label: "Abschlussmeldung",
     deadline:
       "spätestens einen Monat nach Übermittlung der Zwischenmeldung bzw. der letzten aktualisierten Zwischenmeldung",
-    article: "Art. 5 Abs. 1 Buchst. c",
     description:
       "Abschließende Meldung nach Abschluss der Ursachenanalyse, einschließlich der tatsächlichen Auswirkungen.",
     articles: [1, 4],
@@ -258,21 +250,21 @@ export function getReportObligation(
         level: "required",
         label: "Meldepflicht besteht",
         explanation:
-          "Der Vorfall wurde als schwerwiegend eingestuft und ist der zuständigen Behörde zu melden (Art. 19 Abs. 1 DORA).",
+          "Der Vorfall wurde als schwerwiegend eingestuft und ist der zuständigen Behörde zu melden.",
       };
     case "indeterminate":
       return {
         level: "unclear",
         label: "Meldepflicht nicht abschließend bestimmbar",
         explanation:
-          "Die Einstufung ist nicht eindeutig. Klären Sie die offenen Angaben; im Zweifel ist die Meldung fristwahrend abzugeben (Art. 19 Abs. 4 DORA).",
+          "Die Einstufung ist nicht eindeutig. Klären Sie die offenen Angaben; im Zweifel ist die Meldung fristwahrend abzugeben.",
       };
     case "non_major":
       return {
         level: "none",
         label: "Keine Meldepflicht",
         explanation:
-          "Der Vorfall ist nicht schwerwiegend und damit nicht meldepflichtig. Wurde er bereits als schwerwiegend gemeldet, ist die Neueinstufung in der Meldung anzugeben (Art. 2 Buchst. i); im Übrigen bleibt die freiwillige Meldung einer erheblichen Cyberbedrohung möglich (Art. 19 Abs. 2 DORA).",
+          "Der Vorfall ist nicht schwerwiegend und damit nicht meldepflichtig. Wurde er bereits als schwerwiegend gemeldet, ist die Neueinstufung in der Meldung anzugeben; im Übrigen bleibt die freiwillige Meldung einer erheblichen Cyberbedrohung möglich.",
       };
   }
 }

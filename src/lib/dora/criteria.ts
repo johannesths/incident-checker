@@ -125,22 +125,22 @@ export const DATA_LOSS_DIMENSIONS = [
   {
     id: "availability",
     label: "Verfügbarkeit",
-    hint: "Daten sind vorübergehend oder dauerhaft nicht zugänglich oder nutzbar (Art. 5 Buchst. a RTS).",
+    hint: "Daten sind vorübergehend oder dauerhaft nicht zugänglich oder nutzbar.",
   },
   {
     id: "integrity",
     label: "Integrität",
-    hint: "Nicht autorisierte Veränderung; Daten sind unrichtig oder unvollständig (Art. 5 Buchst. c RTS).",
+    hint: "Nicht autorisierte Veränderung; Daten sind unrichtig oder unvollständig.",
   },
   {
     id: "authenticity",
     label: "Authentizität",
-    hint: "Vertrauenswürdigkeit der Datenquelle ist beeinträchtigt (Art. 5 Buchst. b RTS).",
+    hint: "Vertrauenswürdigkeit der Datenquelle ist beeinträchtigt.",
   },
   {
     id: "confidentiality",
     label: "Vertraulichkeit",
-    hint: "Zugriff durch oder Offenlegung gegenüber unbefugten Parteien oder Systemen (Art. 5 Buchst. d RTS).",
+    hint: "Zugriff durch oder Offenlegung gegenüber unbefugten Parteien oder Systemen.",
   },
 ] as const;
 
@@ -157,22 +157,22 @@ export const REPUTATION_CONDITIONS = [
   {
     id: "media_coverage",
     label: "Medienberichterstattung",
-    hint: "Der Vorfall hat sich in den Medien niedergeschlagen (Art. 2 Abs. 1 Buchst. a RTS).",
+    hint: "Der Vorfall hat sich in den Medien niedergeschlagen.",
   },
   {
     id: "repeated_complaints",
     label: "Wiederholte Beschwerden",
-    hint: "Wiederholte Beschwerden verschiedener Kunden oder Gegenparteien zu kundenorientierten Diensten oder kritischen Geschäftsbeziehungen (Art. 2 Abs. 1 Buchst. b RTS).",
+    hint: "Wiederholte Beschwerden verschiedener Kunden oder Gegenparteien zu kundenorientierten Diensten oder kritischen Geschäftsbeziehungen.",
   },
   {
     id: "regulatory_shortfall",
     label: "Regulatorische Anforderungen",
-    hint: "Das Finanzunternehmen wird infolge des Vorfalls regulatorische Anforderungen (voraussichtlich) nicht erfüllen können (Art. 2 Abs. 1 Buchst. c RTS).",
+    hint: "Das Finanzunternehmen wird infolge des Vorfalls regulatorische Anforderungen (voraussichtlich) nicht erfüllen können.",
   },
   {
     id: "client_loss",
     label: "Kunden-/Gegenparteienverlust",
-    hint: "Das Finanzunternehmen wird infolge des Vorfalls (voraussichtlich) Kunden oder Gegenparteien mit wesentlichen Auswirkungen auf sein Geschäft verlieren (Art. 2 Abs. 1 Buchst. d RTS).",
+    hint: "Das Finanzunternehmen wird infolge des Vorfalls (voraussichtlich) Kunden oder Gegenparteien mit wesentlichen Auswirkungen auf sein Geschäft verlieren.",
   },
 ] as const;
 
@@ -188,17 +188,17 @@ export const GEO_IMPACT_AREAS = [
   {
     id: "clients_counterparts",
     label: "Kunden/Gegenparteien",
-    hint: "Erhebliche Auswirkungen auf Kunden und finanzielle Gegenparteien in anderen Mitgliedstaaten (Art. 4 Buchst. a RTS).",
+    hint: "Erhebliche Auswirkungen auf Kunden und finanzielle Gegenparteien in anderen Mitgliedstaaten.",
   },
   {
     id: "group_branches",
     label: "Zweigniederlassungen/Gruppe",
-    hint: "Zweigniederlassungen oder andere Finanzunternehmen der Gruppe, die in anderen Mitgliedstaaten tätig sind (Art. 4 Buchst. b RTS).",
+    hint: "Zweigniederlassungen oder andere Finanzunternehmen der Gruppe, die in anderen Mitgliedstaaten tätig sind.",
   },
   {
     id: "fmi_third_parties",
     label: "Marktinfrastrukturen/Drittdienstleister",
-    hint: "Finanzmarktinfrastrukturen oder Drittdienstleister, die Finanzunternehmen in anderen Mitgliedstaaten bedienen können – soweit Informationen verfügbar (Art. 4 Buchst. c RTS).",
+    hint: "Finanzmarktinfrastrukturen oder Drittdienstleister, die Finanzunternehmen in anderen Mitgliedstaaten bedienen können – soweit Informationen verfügbar.",
   },
 ] as const;
 

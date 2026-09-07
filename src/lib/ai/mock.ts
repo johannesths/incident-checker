@@ -147,7 +147,7 @@ export class MockSeverityService implements SeverityService {
           assessment =
             `Dauer: ${duration} h, Ausfallzeit: ${downtime} h` +
             (!downtimeApplies && downtime > DORA_THRESHOLDS.downtimeHours
-              ? " – Ausfallzeit-Schwelle nicht anwendbar, da kein IKT-Dienst kritischer/wichtiger Funktionen betroffen (Art. 9 Abs. 3 Buchst. b RTS)."
+              ? " – Ausfallzeit-Schwelle nicht anwendbar, da kein IKT-Dienst kritischer/wichtiger Funktionen betroffen."
               : "");
           break;
         }
@@ -165,7 +165,7 @@ export class MockSeverityService implements SeverityService {
               ? `, erhebliche Auswirkungen auf: ${areas.map((a) => GEO_AREA_LABEL[a]).join(", ")}`
               : "") +
             (countMet && areas.length === 0
-              ? " – Schwelle nicht erreicht, da keine erheblichen Auswirkungen in anderen Mitgliedstaaten angegeben (Art. 4 RTS)."
+              ? " – Schwelle nicht erreicht, da keine erheblichen Auswirkungen in anderen Mitgliedstaaten angegeben."
               : "");
           break;
         }
@@ -187,26 +187,26 @@ export class MockSeverityService implements SeverityService {
               ? "Keine Datenbeeinträchtigung angegeben."
               : `Beeinträchtigt: ${dims.map((d) => DATA_LOSS_LABEL[d]).join(", ")} – ` +
                 (adverseImpact
-                  ? "mit nachteiligen Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Art. 9 Abs. 5 Buchst. a erfüllt)."
+                  ? "mit nachteiligen Auswirkungen auf Geschäftsziele/regulatorische Anforderungen – Schwelle erreicht."
                   : "ohne nachteilige Auswirkungen auf Geschäftsziele/regulatorische Anforderungen (Schwelle nicht erreicht).");
           assessment = accessWithDataLossRisk
-            ? `${dimensionNote} Böswilliger unbefugter Zugriff mit möglichem Datenverlust – Schwelle erreicht (Art. 9 Abs. 5 Buchst. b RTS).`
+            ? `${dimensionNote} Böswilliger unbefugter Zugriff mit möglichem Datenverlust – Schwelle erreicht.`
             : dimensionNote;
           break;
         }
         case "critical_services": {
           const conditions = [
             input.criticalFunctionAffected &&
-              "kritische/wichtige Funktion betroffen (Buchst. a)",
+              "kritische/wichtige Funktion betroffen",
             input.regulatedServicesAffected &&
-              "regulierte Finanzdienstleistung betroffen (Buchst. b)",
+              "regulierte Finanzdienstleistung betroffen",
             input.maliciousUnauthorizedAccess &&
-              "erfolgreicher böswilliger unbefugter Zugriff (Buchst. c)",
+              "erfolgreicher böswilliger unbefugter Zugriff",
           ].filter((c): c is string => Boolean(c));
           thresholdMet = conditions.length > 0;
           assessment = thresholdMet
-            ? `Art. 6 RTS erfüllt: ${conditions.join("; ")}.`
-            : "Kein Tatbestand des Art. 6 RTS als erfüllt markiert.";
+            ? `Erfüllt: ${conditions.join("; ")}.`
+            : "Kein Tatbestand als erfüllt markiert.";
           break;
         }
         case "economic_impact":
@@ -219,8 +219,8 @@ export class MockSeverityService implements SeverityService {
           // Art. 2 Abs. 1 Buchst. a–d erfüllt ist.
           thresholdMet = conditions.length > 0;
           assessment = conditions.length
-            ? `Erfüllt: ${conditions.map((c) => REPUTATION_LABEL[c]).join(", ")} (Art. 2 Abs. 1 RTS).`
-            : "Keine Bedingung des Art. 2 Abs. 1 RTS als erfüllt markiert.";
+            ? `Erfüllt: ${conditions.map((c) => REPUTATION_LABEL[c]).join(", ")}.`
+            : "Keine Bedingung als erfüllt markiert.";
           break;
         }
       }
@@ -256,16 +256,16 @@ export class MockSeverityService implements SeverityService {
     let summary: string;
     if (!criticalityMet) {
       summary =
-        "Kein Tatbestand des Kriteriums „Kritikalität der betroffenen Dienste“ (Art. 6 RTS) erfüllt – " +
+        "Kein Tatbestand des Kriteriums „Kritikalität der betroffenen Dienste“ erfüllt – " +
         `daher kein schwerwiegender Vorfall, unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht).`;
     } else if (accessWithDataLossRisk) {
       summary =
         "Erfolgreicher böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme, " +
-        "der zu Datenverlusten führen kann – stets schwerwiegender Vorfall (Art. 8 Abs. 1 Buchst. a RTS).";
+        "der zu Datenverlusten führen kann – stets schwerwiegender Vorfall.";
     } else if (otherMetCount >= 2) {
       summary =
         `Kritikalitätskriterium erfüllt und ${otherMetCount} weitere Kriterien erreichen ihre Schwelle ` +
-        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend (Art. 8 Abs. 1 Buchst. b RTS).`;
+        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend.`;
     } else {
       summary =
         `Kritikalitätskriterium erfüllt, jedoch erreichen weniger als zwei weitere Kriterien ihre Schwelle ` +

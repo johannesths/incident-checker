@@ -176,7 +176,6 @@ type StepId =
 interface StepDef {
   id: StepId;
   title: string;
-  article?: string;
   hint?: string;
   /** Kurzfassung der Angaben für die eingeklappte Ansicht. */
   summary: (f: FormState) => string;
@@ -221,7 +220,6 @@ const STEPS: StepDef[] = [
   {
     id: "clients",
     title: "Kunden, Gegenparteien & Transaktionen",
-    article: "Art. 1, Art. 9 Abs. 1",
     hint: "Schwelle erreicht ab > 10 % der Dienstnutzer, > 100.000 Kunden, > 30 % der Gegenparteien, > 10 % der täglichen Transaktionen (Anzahl oder Wert) oder bei relevanten Kunden/Gegenparteien. Schätzungen sind zulässig.",
     summary: (f) => {
       const parts: string[] = [];
@@ -251,7 +249,6 @@ const STEPS: StepDef[] = [
   {
     id: "duration",
     title: "Dauer & Ausfallzeit",
-    article: "Art. 3, Art. 9 Abs. 3",
     hint: "Schwelle: Dauer über 24 Stunden oder Ausfallzeit über 2 Stunden bei IKT-Diensten kritischer/wichtiger Funktionen.",
     summary: (f) => {
       const parts: string[] = [];
@@ -268,7 +265,6 @@ const STEPS: StepDef[] = [
   {
     id: "geography",
     title: "Geografische Ausbreitung",
-    article: "Art. 4, Art. 9 Abs. 4",
     hint: "Schwelle: Auswirkungen in mindestens zwei Mitgliedstaaten, sofern dort Kunden/Gegenparteien, Gruppenunternehmen oder Marktinfrastrukturen erheblich betroffen sind.",
     summary: (f) => {
       const states = num(f.memberStatesAffected);
@@ -284,7 +280,6 @@ const STEPS: StepDef[] = [
   {
     id: "dataLoss",
     title: "Datenverluste",
-    article: "Art. 5, Art. 9 Abs. 5",
     hint: "Schwelle: beeinträchtigtes Schutzziel mit nachteiligen Folgen für Geschäftsziele oder regulatorische Pflichten.",
     summary: (f) => {
       const dims = labelsOf(DATA_LOSS_DIMENSIONS, f.dataLossDimensions);
@@ -306,7 +301,6 @@ const STEPS: StepDef[] = [
   {
     id: "reputation",
     title: "Reputationsauswirkung",
-    article: "Art. 2, Art. 9 Abs. 2",
     hint: "Schwelle erreicht, sobald mindestens eine Bedingung erfüllt ist – auch die zu erwartende Sichtbarkeit des Vorfalls zählt.",
     summary: (f) =>
       labelsOf(REPUTATION_CONDITIONS, f.reputationalImpactConditions).join(", "),
@@ -315,7 +309,6 @@ const STEPS: StepDef[] = [
   {
     id: "economic",
     title: "Wirtschaftliche Auswirkung",
-    article: "Art. 7, Art. 9 Abs. 6",
     hint: "Schwelle: Kosten und Verluste über 100.000 EUR – brutto, ohne Verrechnung von Rückflüssen; laufende Betriebskosten zählen nicht.",
     summary: (f) => {
       const eur = num(f.economicImpactEur);
@@ -666,7 +659,7 @@ export default function SeverityPage() {
             </div>
             <TogglePill
               active={form.relevantClientsAffected}
-              title="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt (Art. 1 Abs. 3 RTS) – erreicht die Schwelle für sich genommen."
+              title="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt – erreicht die Schwelle für sich genommen."
               onClick={() =>
                 update("relevantClientsAffected", !form.relevantClientsAffected)
               }
@@ -707,8 +700,8 @@ export default function SeverityPage() {
               <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
                 <span className="text-muted-foreground">
-                  Die Ausfallzeit ist Teil der Gesamtdauer (Art. 3 RTS) und kann
-                  diese nicht überschreiten. Bitte prüfen Sie die Angaben.
+                  Die Ausfallzeit ist Teil der Gesamtdauer und kann diese nicht
+                  überschreiten. Bitte prüfen Sie die Angaben.
                 </span>
               </p>
             )}
@@ -895,12 +888,11 @@ export default function SeverityPage() {
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      1. Kritikalität der betroffenen Dienste (Art. 6 RTS)
+                      1. Kritikalität der betroffenen Dienste
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Nur wenn mindestens einer der folgenden Tatbestände
-                      erfüllt ist, kann ein schwerwiegender Vorfall vorliegen
-                      (Art. 8 Abs. 1 RTS).
+                      erfüllt ist, kann ein schwerwiegender Vorfall vorliegen.
                     </p>
                   </div>
                   {GATE_QUESTIONS.map((q) => (
@@ -949,8 +941,8 @@ export default function SeverityPage() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Falls ja, wird der Vorfall unmittelbar als schwerwiegend
-                      eingestuft (Art. 8 Abs. 1 Buchst. a RTS). Andernfalls
-                      erfassen Sie die übrigen Kriterien.
+                      eingestuft. Andernfalls erfassen Sie die übrigen
+                      Kriterien.
                     </p>
                   </div>
                 )}
@@ -977,10 +969,10 @@ export default function SeverityPage() {
                 </p>
                 <p className="text-muted-foreground">
                   Kein Tatbestand des Kriteriums „Kritikalität der betroffenen
-                  Dienste“ (Art. 6 RTS) erfüllt – ein schwerwiegender Vorfall
-                  ist damit ausgeschlossen (Art. 8 Abs. 1 RTS). Erfassen Sie bei
-                  Bedarf die übrigen Angaben zur Dokumentation und bestätigen
-                  Sie mit „Schweregrad bestimmen“.
+                  Dienste“ erfüllt – ein schwerwiegender Vorfall ist damit
+                  ausgeschlossen. Erfassen Sie bei Bedarf die übrigen Angaben
+                  zur Dokumentation und bestätigen Sie mit „Schweregrad
+                  bestimmen“.
                 </p>
               </div>
             </div>
@@ -1011,7 +1003,6 @@ export default function SeverityPage() {
                 marker={<Check className="size-5" />}
                 status="done"
                 title="Vorfragen: Kritikalität der Dienste"
-                article="Art. 6 RTS"
                 summary={gateSummary}
                 trailing={
                   <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -1041,7 +1032,6 @@ export default function SeverityPage() {
                     }
                     status={status}
                     title={step.title}
-                    article={step.article && `${step.article} RTS`}
                     open={open}
                     summary={
                       status === "skipped"
