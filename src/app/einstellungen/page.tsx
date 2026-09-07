@@ -65,8 +65,8 @@ function validate(form: CompanyProfile): FieldErrors {
     errors.secondContactEmail =
       "Bitte geben Sie eine gültige E-Mail-Adresse an.";
   }
-  if (form.ultimateParentLei && !LEI_PATTERN.test(form.ultimateParentLei)) {
-    errors.ultimateParentLei =
+  if (form.groupParentLei && !LEI_PATTERN.test(form.groupParentLei)) {
+    errors.groupParentLei =
       "Der LEI besteht aus 20 alphanumerischen Zeichen.";
   }
   if (form.reportingCurrency && !CURRENCY_PATTERN.test(form.reportingCurrency)) {
@@ -369,33 +369,33 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
 
         <Section
           icon={Network}
-          title="Gruppe und Berichtswährung"
-          desc="Angaben zur Konzernzugehörigkeit und zur Währung der Meldung (Felder 1.13–1.15 des Meldeformulars)."
+          title="Gruppe, Berichtswährung und Fristen"
+          desc="Angaben zur Konzernzugehörigkeit und zur Währung der Meldung (Art. 1 Buchst. f und g des RTS) sowie die Einstufung, die über die Fristenregelung des Art. 5 entscheidet."
         >
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
-              label="Oberstes Mutterunternehmen"
-              htmlFor="ultimateParentName"
+              label="Mutterunternehmen der Gruppe"
+              htmlFor="groupParentName"
               hint="Nur auszufüllen, wenn das Unternehmen einer Gruppe angehört."
             >
               <Input
-                id="ultimateParentName"
-                value={form.ultimateParentName}
-                onChange={(e) => update("ultimateParentName", e.target.value)}
+                id="groupParentName"
+                value={form.groupParentName}
+                onChange={(e) => update("groupParentName", e.target.value)}
               />
             </Field>
             <Field
               label="LEI des Mutterunternehmens"
-              htmlFor="ultimateParentLei"
-              error={errors.ultimateParentLei}
+              htmlFor="groupParentLei"
+              error={errors.groupParentLei}
             >
               <Input
-                id="ultimateParentLei"
+                id="groupParentLei"
                 maxLength={20}
-                value={form.ultimateParentLei}
-                aria-invalid={Boolean(errors.ultimateParentLei)}
+                value={form.groupParentLei}
+                aria-invalid={Boolean(errors.groupParentLei)}
                 onChange={(e) =>
-                  update("ultimateParentLei", e.target.value.toUpperCase().trim())
+                  update("groupParentLei", e.target.value.toUpperCase().trim())
                 }
               />
             </Field>
@@ -403,7 +403,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               label="Berichtswährung"
               htmlFor="reportingCurrency"
               error={errors.reportingCurrency}
-              hint="ISO-4217-Code; in der MVP ist EUR voreingestellt."
+              hint="ISO-4217-Code; Währung, in der monetäre Beträge gemeldet werden."
             >
               <Input
                 id="reportingCurrency"
@@ -415,6 +415,31 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
                 }
               />
             </Field>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Einstufung nach der Richtlinie (EU) 2022/2555</Label>
+            <div className="flex flex-wrap gap-2">
+              <ChoicePill
+                active={form.nis2EssentialEntity}
+                onClick={() => update("nis2EssentialEntity", true)}
+              >
+                Wesentliche oder wichtige Einrichtung
+              </ChoicePill>
+              <ChoicePill
+                active={!form.nis2EssentialEntity}
+                onClick={() => update("nis2EssentialEntity", false)}
+              >
+                Nicht als wesentlich oder wichtig eingestuft
+              </ChoicePill>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Für Kreditinstitute, zentrale Gegenparteien, Betreiber von
+              Handelsplätzen und nach Art. 3 der NIS-2-Richtlinie als wesentlich
+              oder wichtig eingestufte Unternehmen verlängert ein Wochenende die
+              Frist für Erst- und Zwischenmeldungen nicht (Art. 5 Abs. 4 und 5
+              des RTS).
+            </p>
           </div>
         </Section>
 

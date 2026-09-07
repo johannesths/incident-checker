@@ -1,23 +1,26 @@
 /**
- * Plausibilitätsprüfungen der Vorfallmeldung.
+ * Plausibilitätsprüfungen der Meldung.
  *
- * Das Meldeformular verlangt an mehreren Stellen, dass Angaben zueinander
- * passen: Die in Feld 2.5 gewählten Klassifikationskriterien müssen zu den
- * Schwellenwertangaben der übrigen Felder passen, Zeitpunkte müssen in einem
- * plausiblen Verhältnis stehen, und "Sonstiges"-Auswahlen sind zu
- * spezifizieren. Die Regeln stammen aus den "Ergänzungen durch die BaFin" zu
- * den einzelnen Feldern sowie aus Anhang II der Durchführungsverordnung (EU)
- * 2025/302.
+ * Die Delegierte Verordnung (EU) 2025/301 verlangt Angaben, die zueinander
+ * passen müssen: Die Kriterien, auf deren Grundlage eingestuft wurde
+ * (Art. 2 Buchst. d), müssen sich in den Angaben zu ihrer Erfüllung
+ * wiederfinden (Art. 3 Buchst. d); Zeitpunkte müssen in einer möglichen
+ * Reihenfolge stehen; eine Auswahl "Sonstiges" verlangt eine Angabe, welche.
+ * Hinzu kommen die Fristen des Art. 5 – wer sie überschreitet, hat die Gründe
+ * für die Verzögerung mitzuteilen (Art. 5 Abs. 3).
  *
  * Die Prüfungen laufen im Formular (als Hinweis) und in der API (vor der
  * Übermittlung) – deshalb liegen sie hier und nicht in der Seite.
  */
 
 import type { ReportInput } from "@/lib/schemas";
-import { coversSection, isFollowUp } from "./reporting";
 import {
-  INITIAL_DEADLINE_AFTER_CLASSIFICATION_HOURS,
-  INITIAL_DEADLINE_AFTER_DETECTION_HOURS,
+  coversArticle,
+  initialReportDeadline,
+  isFollowUp,
+} from "./reporting";
+import {
+  EXTERNAL_ORIGINS,
   ROOT_CAUSE_BY_ID,
   type RootCauseCategory,
 } from "./report-fields";
@@ -32,7 +35,7 @@ export type CheckSeverity = "error" | "warning";
 export interface ReportCheck {
   id: string;
   severity: CheckSeverity;
-  /** Feldnummer des Meldeformulars, auf die sich der Befund bezieht. */
+  /** Fundstelle der Angabe, auf die sich der Befund bezieht. */
   field: string;
   message: string;
 }
@@ -69,26 +72,51 @@ export function checkReport(
   ) => checks.push({ id, severity, field, message });
 
   const criteria = input.classificationCriteria;
-  const section3 = coversSection(input.reportType, 3);
-  const section4 = coversSection(input.reportType, 4);
+  const article3 = coversArticle(input.reportType, 3);
+  const article4 = coversArticle(input.reportType, 4);
 
-  /* --- Abschnitt 1 und 2 -------------------------------------------------- */
+  /* --- Art. 1 und 2 -------------------------------------------------------- */
 
-  if (isFollowUp(input.reportType) && !input.bafinIncidentId.trim()) {
+  if (
+    input.aggregatedEntityNames.trim().length > 0 !==
+    input.aggregatedEntityLeis.trim().length > 0
+  ) {
     add(
-      "missing_incident_id",
+      "aggregated_mismatch",
       "error",
-      "3.1",
-      "Folgemeldungen verweisen auf die Vorgangsnummer, die die Behörde mit der Erstmeldung vergeben hat.",
+      "Art. 1 Buchst. d",
+      "Zu einer aggregierten Meldung gehören Namen und LEI-Codes aller erfassten Finanzunternehmen.",
     );
   }
 
-  if (input.reportingCurrency !== "EUR" && !input.additionalInformation.trim()) {
+  if (
+    input.aggregatedEntityNames.trim() &&
+    input.aggregatedEntityNames.split(";").length !==
+      input.aggregatedEntityLeis.split(";").length
+  ) {
     add(
-      "currency_reason",
-      "warning",
-      "2.10",
-      "Eine von EUR abweichende Berichtswährung ist in Feld 2.10 zu begründen.",
+      "aggregated_count_mismatch",
+      "error",
+      "Art. 1 Buchst. d",
+      "Die Reihenfolge der LEI-Codes muss der Reihenfolge der Namen entsprechen – es sind unterschiedlich viele Einträge angegeben.",
+    );
+  }
+
+  if (input.submittingEntityName.trim() !== "" && !input.submittingEntityCode) {
+    add(
+      "submitter_without_code",
+      "error",
+      "Art. 1 Buchst. c",
+      "Übermittelt ein anderes Unternehmen die Meldung, sind Name und Identifikationscode anzugeben.",
+    );
+  }
+
+  if (isFollowUp(input.reportType) && !input.authorityReferenceCode.trim()) {
+    add(
+      "missing_authority_reference",
+      "error",
+      "Art. 3 Buchst. a",
+      "Folgemeldungen führen den Referenzcode, den die zuständige Behörde für den Vorfall mitgeteilt hat.",
     );
   }
 
@@ -98,116 +126,112 @@ export function checkReport(
     add(
       "classified_before_detected",
       "error",
-      "2.3",
-      "Die Einstufung als schwerwiegend kann nicht vor der Entdeckung des Vorfalls liegen.",
+      "Art. 2 Buchst. b",
+      "Die Einstufung als schwerwiegend kann nicht vor der Erkennung des Vorfalls liegen.",
     );
   }
 
-  // Art. 19 Abs. 4 Buchst. a DORA: 4 Stunden nach der Einstufung, jedenfalls
-  // 24 Stunden nach der Entdeckung. Eine Überschreitung ist zu begründen.
-  if (input.reportType === "initial" && !input.additionalInformation.trim()) {
-    const lateAfterDetection =
-      detectedAt !== null &&
-      now.getTime() - detectedAt.getTime() >
-        INITIAL_DEADLINE_AFTER_DETECTION_HOURS * HOUR_MS;
-    const lateAfterClassification =
-      classifiedAt !== null &&
-      now.getTime() - classifiedAt.getTime() >
-        INITIAL_DEADLINE_AFTER_CLASSIFICATION_HOURS * HOUR_MS;
-    if (lateAfterDetection || lateAfterClassification) {
+  // Art. 5 Abs. 1 Buchst. a und Abs. 2 – Fälligkeit der Erstmeldung; Abs. 3
+  // verlangt bei Überschreitung die Mitteilung der Gründe.
+  if (input.reportType === "initial" && detectedAt && classifiedAt) {
+    const deadline = initialReportDeadline(detectedAt, classifiedAt);
+    if (now > deadline.dueAt && !input.delayReason.trim()) {
       add(
         "late_initial_report",
         "warning",
-        "2.10",
-        `Die Erstmeldung liegt außerhalb der Frist (${INITIAL_DEADLINE_AFTER_CLASSIFICATION_HOURS} Stunden nach der Einstufung, spätestens ${INITIAL_DEADLINE_AFTER_DETECTION_HOURS} Stunden nach der Entdeckung). Bitte begründen Sie die Verzögerung in Feld 2.10.`,
+        "Art. 5 Abs. 3",
+        `Die Frist für die Erstmeldung ist abgelaufen (${deadline.basis}). Teilen Sie der Behörde die Gründe für die Verzögerung mit.`,
       );
     }
   }
 
-  if (
-    input.reportType === "reclassification" &&
-    !input.additionalInformation.trim()
-  ) {
+  if (input.reclassifiedAsNonMajor && !input.reclassificationDetails.trim()) {
     add(
-      "reclassification_reason",
+      "reclassification_without_details",
       "error",
-      "2.10",
-      "Bei einer Rückstufung sind in Feld 2.10 die Gründe darzulegen, aus denen der Vorfall die Einstufungskriterien nicht mehr erfüllt.",
+      "Art. 2 Buchst. i",
+      "Zur Neueinstufung als nicht schwerwiegend gehören die Gründe, aus denen der Vorfall die Einstufungskriterien nicht mehr erfüllt.",
     );
   }
 
-  // BaFin zu 2.5: Ohne das Kriterium "Betroffene kritische Dienstleistungen"
-  // liegt nie ein schwerwiegender Vorfall vor (Art. 8 Abs. 1 RTS).
+  if (input.reclassifiedAsNonMajor && criteria.length > 0) {
+    add(
+      "reclassification_with_criteria",
+      "warning",
+      "Art. 2 Buchst. d",
+      "Der Vorfall ist als nicht schwerwiegend neu eingestuft, es sind aber weiterhin Einstufungskriterien angegeben.",
+    );
+  }
+
+  // Art. 8 Abs. 1 DelVO (EU) 2024/1772: Ohne betroffene kritische Dienste
+  // liegt kein schwerwiegender Vorfall vor.
   if (
     input.classification === "major" &&
-    input.reportType !== "reclassification" &&
+    !input.reclassifiedAsNonMajor &&
     !criteria.includes("critical_services")
   ) {
     add(
       "missing_critical_services",
       "error",
-      "2.5",
-      "Das Kriterium „Kritikalität der betroffenen Dienste“ ist bei jedem meldepflichtigen Vorfall auszuwählen (Art. 8 Abs. 1 RTS).",
+      "Art. 2 Buchst. d",
+      "Das Kriterium „Kritikalität der betroffenen Dienste“ ist Voraussetzung jedes schwerwiegenden Vorfalls (Art. 8 Abs. 1 DelVO (EU) 2024/1772).",
     );
   }
 
-  // BaFin zu 2.6: Deutschland zählt selbst als betroffener Mitgliedstaat.
+  // Art. 9 Abs. 4 DelVO (EU) 2024/1772: Die geografische Ausbreitung setzt
+  // Auswirkungen in mindestens zwei Mitgliedstaaten voraus.
   const states = input.affectedMemberStates.length;
   if (states > 1 && !criteria.includes("geographical_spread")) {
     add(
       "states_without_criterion",
       "error",
-      "2.5",
-      "Bei Auswirkungen in mehr als einem Mitgliedstaat ist in Feld 2.5 zusätzlich „Geografische Ausbreitung“ auszuwählen.",
+      "Art. 2 Buchst. d",
+      "Bei Auswirkungen in mehr als einem Mitgliedstaat ist auch das Kriterium „Geografische Ausbreitung“ anzugeben.",
     );
   }
   if (criteria.includes("geographical_spread") && states < 2) {
     add(
       "criterion_without_states",
       "error",
-      "2.6",
-      "Das Kriterium „Geografische Ausbreitung“ setzt Auswirkungen in mindestens zwei Mitgliedstaaten voraus – bitte wählen Sie diese in Feld 2.6 aus.",
+      "Art. 2 Buchst. e",
+      "Das Kriterium „Geografische Ausbreitung“ setzt Auswirkungen in mindestens zwei Mitgliedstaaten voraus – bitte geben Sie diese an.",
     );
   }
 
-  if (input.originatesFromThirdParty && !input.thirdPartyDetails.trim()) {
+  const externalOrigin =
+    input.incidentOrigin !== null &&
+    input.incidentOrigin !== undefined &&
+    EXTERNAL_ORIGINS.includes(input.incidentOrigin);
+
+  if (externalOrigin && !input.originEntityDetails.trim()) {
     add(
-      "third_party_unnamed",
+      "origin_unnamed",
       "error",
-      "2.8",
-      "Bitte nennen Sie den Dritten mit vollständiger Bezeichnung, Identifikationscode und Art des Codes.",
+      "Art. 2 Buchst. g",
+      "Zum Ursprung bei einem Dritten gehören dessen Name, Identifikationscode und die Art des Codes.",
     );
   }
 
-  if (input.businessContinuityActivated && !input.additionalInformation.trim()) {
-    add(
-      "continuity_reason",
-      "warning",
-      "2.10",
-      "Die Gründe für die Aktivierung des Geschäftsfortführungsplans sind in Feld 2.10 zu erläutern.",
-    );
-  }
+  if (!article3) return checks;
 
-  if (!section3) return checks;
-
-  /* --- Abschnitt 3 --------------------------------------------------------- */
+  /* --- Art. 3 -------------------------------------------------------------- */
 
   const occurredAt = toDate(input.occurredAt);
-  const restoredAt = toDate(input.servicesRestoredAt);
+  const resumedAt = toDate(input.regularOperationsResumedAt);
   if (occurredAt && detectedAt && occurredAt > detectedAt) {
     add(
       "occurred_after_detected",
       "error",
-      "3.2",
-      "Der Vorfall kann nicht nach seiner Entdeckung eingetreten sein.",
+      "Art. 3 Buchst. b",
+      "Der Vorfall kann nicht nach seiner Erkennung eingetreten sein.",
     );
   }
-  if (restoredAt && occurredAt && restoredAt < occurredAt) {
+  if (resumedAt && occurredAt && resumedAt < occurredAt) {
     add(
-      "restored_before_occurred",
+      "resumed_before_occurred",
       "error",
-      "3.3",
-      "Die Wiederherstellung der Dienste kann nicht vor dem Eintreten des Vorfalls liegen.",
+      "Art. 3 Buchst. c",
+      "Der reguläre Geschäftsbetrieb kann nicht vor dem Eintreten des Vorfalls wiederaufgenommen worden sein.",
     );
   }
 
@@ -217,8 +241,8 @@ export function checkReport(
     add(
       "downtime_exceeds_duration",
       "warning",
-      "3.16",
-      "Die Ausfallzeit übersteigt die Dauer des Vorfalls. Beides ist voneinander abzugrenzen (Felder 3.15 und 3.16) – bitte prüfen Sie die Angaben.",
+      "Art. 3 Buchst. d",
+      "Die Ausfallzeit übersteigt die Dauer des Vorfalls. Beide Angaben sind voneinander abzugrenzen (Art. 3 DelVO (EU) 2024/1772) – bitte prüfen Sie sie.",
     );
   }
 
@@ -227,16 +251,16 @@ export function checkReport(
       add(
         "reputation_without_criterion",
         "warning",
-        "2.5",
-        "Zum Reputationsschaden liegen Angaben vor – prüfen Sie, ob das Kriterium „Reputationsauswirkung“ in Feld 2.5 auszuwählen ist.",
+        "Art. 2 Buchst. d",
+        "Zum Reputationsschaden liegen Angaben vor – prüfen Sie, ob das Kriterium „Reputationsauswirkung“ zur Einstufung geführt hat.",
       );
     }
     if (!input.reputationalImpactContext.trim()) {
       add(
         "reputation_without_context",
         "warning",
-        "3.14",
-        "Bitte spezifizieren Sie die Auswirkungen auf die Reputation (Medienberichte, Kundenbeschwerden, nicht erfüllte Anforderungen).",
+        "Art. 3 Buchst. d",
+        "Bitte erläutern Sie den Reputationsschaden: Medien und ihre Reichweite, Kundenbeschwerden, nicht erfüllte regulatorische Anforderungen.",
       );
     }
   }
@@ -246,16 +270,16 @@ export function checkReport(
       add(
         "impact_types_without_criterion",
         "warning",
-        "2.5",
-        "Zu den Auswirkungen in anderen Mitgliedstaaten liegen Angaben vor – prüfen Sie, ob das Kriterium „Geografische Ausbreitung“ auszuwählen ist.",
+        "Art. 2 Buchst. d",
+        "Zu den Auswirkungen in anderen Mitgliedstaaten liegen Angaben vor – prüfen Sie das Kriterium „Geografische Ausbreitung“.",
       );
     }
     if (!input.memberStateImpactDescription.trim()) {
       add(
         "impact_without_description",
         "warning",
-        "3.19",
-        "Bitte beschreiben Sie die Auswirkungen auf die in Feld 2.6 gewählten Mitgliedstaaten.",
+        "Art. 3 Buchst. d",
+        "Bitte beschreiben Sie Auswirkungen und Schwere je betroffenem Mitgliedstaat.",
       );
     }
   }
@@ -265,40 +289,38 @@ export function checkReport(
       add(
         "data_loss_without_criterion",
         "warning",
-        "2.5",
-        "Zu den Datenverlusten liegen Angaben vor – prüfen Sie, ob das Kriterium „Datenverluste“ in Feld 2.5 auszuwählen ist.",
+        "Art. 2 Buchst. d",
+        "Zu Datenverlusten liegen Angaben vor – prüfen Sie, ob das Kriterium „Datenverluste“ zur Einstufung geführt hat.",
       );
     }
     if (!input.dataLossDescription.trim()) {
       add(
         "data_loss_without_description",
         "warning",
-        "3.21",
-        "Bitte teilen Sie mit, welche Daten betroffen sind und welche Folgen die Beeinträchtigung hat.",
+        "Art. 3 Buchst. d",
+        "Bitte teilen Sie mit, welche Daten betroffen sind und welche Folgen die Beeinträchtigung für Geschäftsziele oder regulatorische Anforderungen hat.",
       );
     }
   }
 
-  if (criteria.includes("critical_services") && !input.criticalServicesDescription.trim()) {
+  if (
+    criteria.includes("critical_services") &&
+    !input.criticalServicesDescription.trim()
+  ) {
     add(
       "critical_services_without_description",
       "warning",
-      "3.22",
+      "Art. 3 Buchst. d",
       "Bitte benennen Sie die betroffenen kritischen Dienste in Klarschrift.",
     );
   }
 
-  // BaFin zu 3.23: Ein Vorfall bei einem Dritten ist stets auch ein externes
-  // Ereignis.
-  if (
-    input.originatesFromThirdParty &&
-    !input.incidentTypes.includes("external_event")
-  ) {
+  if (externalOrigin && !input.incidentTypes.includes("external_event")) {
     add(
-      "third_party_not_external",
+      "origin_not_external_type",
       "warning",
-      "3.23",
-      "Vorfälle, die bei einem Dritten aufgetreten sind, sind zusätzlich als „Externes Ereignis“ zu kennzeichnen.",
+      "Art. 3 Buchst. e",
+      "Ein Vorfall mit Ursprung bei einem Dritten ist zusätzlich als „Externes Ereignis“ zu kennzeichnen.",
     );
   }
 
@@ -306,7 +328,7 @@ export function checkReport(
     add(
       "incident_type_unspecified",
       "error",
-      "3.24",
+      "Art. 3 Buchst. e",
       "Bitte geben Sie die sonstige Art des Vorfalls an.",
     );
   }
@@ -317,7 +339,7 @@ export function checkReport(
     add(
       "technique_unspecified",
       "error",
-      "3.26",
+      "Art. 3 Buchst. f",
       "Bitte geben Sie die sonstige Technik an.",
     );
   }
@@ -328,7 +350,7 @@ export function checkReport(
     add(
       "authority_unspecified",
       "error",
-      "3.32",
+      "Art. 3 Buchst. j",
       "Bitte geben Sie an, welche weitere Behörde informiert wurde.",
     );
   }
@@ -339,7 +361,7 @@ export function checkReport(
     add(
       "authorities_contradictory",
       "error",
-      "3.31",
+      "Art. 3 Buchst. j",
       "„Keine“ schließt die Angabe weiterer Behörden aus.",
     );
   }
@@ -351,7 +373,7 @@ export function checkReport(
     add(
       "infrastructure_without_description",
       "warning",
-      "3.29",
+      "Art. 3 Buchst. h",
       "Bitte benennen Sie die betroffenen Infrastrukturkomponenten in Klarschrift.",
     );
   }
@@ -360,16 +382,16 @@ export function checkReport(
     add(
       "temporary_measures_without_description",
       "warning",
-      "3.34",
+      "Art. 3 Buchst. k",
       input.temporaryMeasuresTaken
-        ? "Bitte beschreiben Sie die ergriffenen oder geplanten Sofortmaßnahmen samt Zeitpunkt der Umsetzung."
+        ? "Bitte beschreiben Sie die ergriffenen oder geplanten befristeten Maßnahmen samt Zeitpunkt der Umsetzung."
         : "Wurden keine befristeten Maßnahmen ergriffen, ist der Grund anzugeben.",
     );
   }
 
-  if (!section4) return checks;
+  if (!article4) return checks;
 
-  /* --- Abschnitt 4 --------------------------------------------------------- */
+  /* --- Art. 4 -------------------------------------------------------------- */
 
   const resolvedAt = toDate(input.incidentResolvedAt);
   const causeAddressedAt = toDate(input.rootCauseAddressedAt);
@@ -377,7 +399,7 @@ export function checkReport(
     add(
       "resolved_before_occurred",
       "error",
-      "4.8",
+      "Art. 4 Buchst. b",
       "Die Behebung des Vorfalls kann nicht vor seinem Eintreten liegen.",
     );
   }
@@ -385,35 +407,36 @@ export function checkReport(
     add(
       "cause_addressed_before_occurred",
       "error",
-      "4.7",
+      "Art. 4 Buchst. b",
       "Die Beseitigung der Ursache kann nicht vor dem Eintreten des Vorfalls liegen.",
     );
   }
 
-  // Feld 3.15 meint den Zeitraum zwischen den Feldern 3.2 und 4.8.
+  // Die Dauer misst den Zeitraum vom Eintreten bis zur Behebung
+  // (Art. 3 Abs. 1 DelVO (EU) 2024/1772); Schätzungen sind in der
+  // Abschlussmeldung zu korrigieren.
   if (duration !== null && occurredAt && resolvedAt) {
-    const actualHours =
-      (resolvedAt.getTime() - occurredAt.getTime()) / HOUR_MS;
+    const actualHours = (resolvedAt.getTime() - occurredAt.getTime()) / HOUR_MS;
     if (Math.abs(actualHours - duration) > 1) {
       add(
         "duration_mismatch",
         "warning",
-        "3.15",
-        `Die angegebene Dauer weicht vom Zeitraum zwischen den Feldern 3.2 und 4.8 (${actualHours.toFixed(1)} Stunden) ab. Schätzungen sind in der Abschlussmeldung zu korrigieren.`,
+        "Art. 3 Buchst. d",
+        `Die angegebene Dauer weicht vom Zeitraum zwischen Eintreten und Behebung (${actualHours.toFixed(1)} Stunden) ab.`,
       );
     }
   }
 
-  // Ursachen: 4.2 nur innerhalb der in 4.1 gewählten Kategorien, 4.3 als
-  // Pflichtangabe zu den Detailkategorien, die weiter aufzuschlüsseln sind.
+  // Die Ursachen sind dreistufig einzustufen; die weitergehende Einstufung ist
+  // Pflicht, sobald die gewählte Detailursache sie vorsieht.
   const selectedCategories = new Set<string>(input.rootCauseCategories);
   for (const detailId of input.rootCauseDetails) {
     if (!selectedCategories.has(categoryOf(detailId))) {
       add(
         "detail_without_category",
         "error",
-        "4.2",
-        "Es ist eine detaillierte Ursache ausgewählt, deren übergeordnete Kategorie in Feld 4.1 fehlt.",
+        "Art. 4 Buchst. a",
+        "Es ist eine detaillierte Ursache ausgewählt, deren übergeordnete Kategorie fehlt.",
       );
       break;
     }
@@ -431,8 +454,8 @@ export function checkReport(
         add(
           `further_required_${detailId}`,
           "error",
-          "4.3",
-          `Zur Ursache „${detail.label}“ ist die weitergehende Einstufung eine Pflichtangabe.`,
+          "Art. 4 Buchst. a",
+          `Zur Ursache „${detail.label}“ ist die weitergehende Einstufung anzugeben.`,
         );
       }
     }
@@ -440,7 +463,7 @@ export function checkReport(
       add(
         "root_cause_unspecified",
         "error",
-        "4.4",
+        "Art. 4 Buchst. a",
         "Bitte geben Sie die sonstige Art der Ursache an.",
       );
     }
@@ -449,31 +472,18 @@ export function checkReport(
     add(
       "root_cause_without_description",
       "error",
-      "4.5",
-      "Die Ursachenanalyse ist wesentlicher Bestandteil der Abschlussmeldung; der Hinweis auf fehlende Erkenntnisse genügt nicht.",
+      "Art. 4 Buchst. a",
+      "Zur Einstufung der Ursachen gehört die Abfolge der Ereignisse, die zum Vorfall geführt haben.",
     );
   }
 
-  // BaFin zu 4.1: Vorfälle bei Dritten sind als externes Ereignis mit der
-  // Detailursache "Ausfälle bei Dritten" einzustufen.
-  if (input.originatesFromThirdParty) {
-    if (!input.rootCauseCategories.includes("external_event")) {
-      add(
-        "third_party_not_external_cause",
-        "warning",
-        "4.1",
-        "Bei einem Vorfall, der bei einem Dritten aufgetreten ist, ist in Feld 4.1 „Externes Ereignis“ auszuwählen.",
-      );
-    } else if (
-      !input.rootCauseDetails.includes("external_event.third_party_outage")
-    ) {
-      add(
-        "third_party_not_outage",
-        "warning",
-        "4.2",
-        "Bei einem Vorfall, der bei einem Dritten aufgetreten ist, ist in Feld 4.2 „Ausfälle bei Dritten“ auszuwählen.",
-      );
-    }
+  if (externalOrigin && !input.rootCauseCategories.includes("external_event")) {
+    add(
+      "origin_not_external_cause",
+      "warning",
+      "Art. 4 Buchst. a",
+      "Ein Vorfall mit Ursprung bei einem Dritten ist als „Externes Ereignis“ einzustufen.",
+    );
   }
 
   const grossCosts = toNumber(input.grossCostsAndLosses);
@@ -486,24 +496,16 @@ export function checkReport(
     add(
       "costs_without_criterion",
       "warning",
-      "2.5",
-      "Die angegebenen Kosten und Verluste überschreiten die Schwelle des Kriteriums „Wirtschaftliche Auswirkung“ – prüfen Sie Feld 2.5.",
+      "Art. 2 Buchst. d",
+      "Die angegebenen Kosten und Verluste überschreiten die Schwelle des Kriteriums „Wirtschaftliche Auswirkung“ – prüfen Sie die Einstufung.",
     );
   }
   if (grossCosts !== null && recoveries !== null && recoveries > grossCosts) {
     add(
       "recoveries_exceed_costs",
       "warning",
-      "4.14",
-      "Die finanziellen Rückflüsse übersteigen die Bruttokosten. Feld 4.13 ist brutto, also ohne Verrechnung von Rückflüssen anzugeben.",
-    );
-  }
-  if (grossCosts !== null && grossCosts > 0 && !input.economicImpactDescription.trim()) {
-    add(
-      "costs_without_description",
-      "warning",
-      "4.12",
-      "Bitte machen Sie nähere Angaben, wodurch die in Feld 4.13 angegebenen Kosten und Verluste entstanden sind.",
+      "Art. 4 Buchst. e",
+      "Die finanziellen Wiedereinziehungen übersteigen die Kosten und Verluste. Diese sind brutto, also ohne Verrechnung der Wiedereinziehungen anzugeben.",
     );
   }
 
@@ -511,7 +513,7 @@ export function checkReport(
     add(
       "recurring_without_date",
       "error",
-      "4.16",
+      "Art. 4 Buchst. f",
       "Bei wiederholten Vorfällen sind Datum und Uhrzeit des ersten Vorfalls anzugeben.",
     );
   }

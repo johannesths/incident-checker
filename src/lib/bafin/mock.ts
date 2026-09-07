@@ -1,5 +1,10 @@
-import type { ReportType } from "@/lib/dora/reporting";
-import type { ReportDeadline, ReportInput, ReportReceipt } from "@/lib/schemas";
+import {
+  HOURS_AFTER_INITIAL_REPORT,
+  extendOverWeekend,
+  weekendExtensionAvailable,
+  type ReportType,
+} from "@/lib/dora/reporting";
+import type { ReportDeadline, ReportReceipt, SubmissionInput } from "@/lib/schemas";
 import type { ReportingService } from "./types";
 
 /**
@@ -31,17 +36,41 @@ function addMonth(date: Date): Date {
 }
 
 /**
- * Fristen, die nach der abgegebenen Meldung noch laufen (Art. 19 Abs. 4 DORA).
- * Nach der Abschlussmeldung ist der Meldezyklus beendet.
+ * Verschiebt eine Fälligkeit, die auf ein Wochenende fällt, auf 12.00 Uhr des
+ * folgenden Arbeitstages (Art. 5 Abs. 4 des RTS) – soweit dem Unternehmen
+ * diese Erleichterung für die betreffende Meldung offensteht (Abs. 5).
  */
-function nextDeadlines(reportType: ReportType, submittedAt: Date): ReportDeadline[] {
+function applyWeekendRule(
+  deadline: ReportDeadline,
+  entity: { entityType: string; nis2EssentialEntity: boolean },
+): ReportDeadline {
+  if (!weekendExtensionAvailable(deadline.reportType, entity)) return deadline;
+  const extended = extendOverWeekend(new Date(deadline.dueAt));
+  if (!extended) return deadline;
+  return {
+    reportType: deadline.reportType,
+    dueAt: extended.dueAt.toISOString(),
+    basis: `${deadline.basis}; ${extended.basis}`,
+  };
+}
+
+/**
+ * Fristen, die nach der abgegebenen Meldung noch laufen (Art. 5 Abs. 1 des
+ * RTS). Nach der Abschlussmeldung ist der Meldezyklus beendet.
+ */
+function nextDeadlines(
+  reportType: ReportType,
+  submittedAt: Date,
+): ReportDeadline[] {
   switch (reportType) {
     case "initial":
       return [
         {
           reportType: "intermediate",
-          dueAt: new Date(submittedAt.getTime() + 72 * HOUR_MS).toISOString(),
-          basis: "Art. 19 Abs. 4 Buchst. b DORA – 72 Stunden nach der Erstmeldung",
+          dueAt: new Date(
+            submittedAt.getTime() + HOURS_AFTER_INITIAL_REPORT * HOUR_MS,
+          ).toISOString(),
+          basis: `Art. 5 Abs. 1 Buchst. b – ${HOURS_AFTER_INITIAL_REPORT} Stunden nach Übermittlung der Erstmeldung, auch ohne Änderung des Sachstands`,
         },
       ];
     case "intermediate":
@@ -50,30 +79,42 @@ function nextDeadlines(reportType: ReportType, submittedAt: Date): ReportDeadlin
           reportType: "final",
           dueAt: addMonth(submittedAt).toISOString(),
           basis:
-            "Art. 19 Abs. 4 Buchst. c DORA – ein Monat nach der Zwischenmeldung",
+            "Art. 5 Abs. 1 Buchst. c – ein Monat nach Übermittlung der Zwischenmeldung bzw. der letzten aktualisierten Zwischenmeldung",
         },
       ];
     case "final":
-    case "reclassification":
-      // Nach der Abschlussmeldung wie nach der Rückstufung läuft keine weitere
-      // Frist dieses Meldezyklus.
       return [];
   }
 }
 
 export class MockBafinReportingService implements ReportingService {
-  async submit(input: ReportInput): Promise<ReportReceipt> {
+  async submit(input: SubmissionInput): Promise<ReportReceipt> {
     const submittedAt = new Date();
+    const entity = {
+      entityType: input.entityType,
+      // Nur die Vorfallmeldung kennt Folgefristen; für die Einordnung nach
+      // Art. 5 Abs. 5 zählt die Einstufung des Unternehmens.
+      nis2EssentialEntity: input.nis2EssentialEntity ?? false,
+    };
+    const deadlines =
+      input.kind === "incident"
+        ? nextDeadlines(input.reportType, submittedAt).map((d) =>
+            applyWeekendRule(d, entity),
+          )
+        : [];
+
     return {
       submissionId: submissionId(submittedAt),
       submittedAt: submittedAt.toISOString(),
-      reportType: input.reportType,
+      kind: input.kind,
+      reportType: input.kind === "incident" ? input.reportType : null,
       status: "simulated",
-      channel: "Melde- und Veröffentlichungsplattform (MVP) der BaFin",
-      nextDeadlines: nextDeadlines(input.reportType, submittedAt),
-      institutionName: input.affectedEntityNames,
+      channel: "Elektronische Meldung an die zuständige Behörde",
+      nextDeadlines: deadlines,
+      entityName: input.entityName,
       competentAuthority: input.competentAuthority,
-      incidentReference: input.incidentReference,
+      incidentReferenceCode:
+        input.kind === "incident" ? input.incidentReferenceCode : "",
     };
   }
 }

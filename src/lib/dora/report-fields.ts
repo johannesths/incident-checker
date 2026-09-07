@@ -1,37 +1,45 @@
 /**
- * Datenfelder der Vorfallmeldung nach dem Meldeformular der Aufsicht.
+ * Inhalt der Meldungen nach Art. 19 DORA.
  *
- * Grundlage: Durchführungsverordnung (EU) 2025/302 (ITS zu Art. 20 Buchst. b
- * DORA), Anhang I (Meldevorlage) und Anhang II (Datenglossar), sowie die
- * "Inhaltlichen Hinweise" der BaFin zum Meldeformular in der Melde- und
- * Veröffentlichungsplattform (MVP).
+ * Maßgeblich ist die Delegierte Verordnung (EU) 2025/301 (RTS zu Art. 20
+ * Buchst. a DORA). Sie legt fest, welche Angaben eine Erst-, Zwischen- und
+ * Abschlussmeldung enthalten müssen (Art. 1 bis 4), welche Fristen dafür
+ * gelten (Art. 5) und was eine freiwillige Meldung erheblicher
+ * Cyberbedrohungen umfasst (Art. 6).
  *
- * Die Feldnummern (1.1–1.15, 2.1–2.10, 3.1–3.35, 4.1–4.16) sind die des
- * amtlichen Formulars und werden in der Oberfläche mitgeführt: Wer die Meldung
- * anschließend in der MVP erfasst, findet jede Angabe an derselben Nummer
- * wieder.
+ * Die Anforderungen sind Mindestinhalte ("enthalten mindestens"). Wo die
+ * Angabe erst durch eine Auswahl beantwortbar wird – etwa die Art des
+ * Vorfalls oder die Techniken des Angreifers – sind die Wertelisten des
+ * Datenglossars der zugehörigen Durchführungsverordnung (EU) 2025/302
+ * hinterlegt. Die Benennung folgt durchgehend der Delegierten Verordnung.
  *
  * HINWEIS: Wie die Klassifizierungskriterien ist dieser Katalog eine
- * explizite, auditierbare Regelbasis. Vor dem Produktiveinsatz ist er gegen
- * den aktuellen ITS-Text und die jeweils gültige Fassung der BaFin-Hinweise zu
- * verifizieren.
+ * explizite, auditierbare Regelbasis und vor dem Produktiveinsatz gegen den
+ * aktuellen Verordnungstext zu verifizieren.
  */
 
 /* ---------------------------------------------------------------------------
- * Abschnitte des Meldeformulars
+ * Fundstellen
  * ------------------------------------------------------------------------- */
 
-export type ReportSection = 1 | 2 | 3 | 4;
+/** Artikel der Delegierten Verordnung, die Meldeinhalte festlegen. */
+export type ContentArticle = 1 | 2 | 3 | 4 | 6;
 
-export const REPORT_SECTIONS: Record<ReportSection, { title: string }> = {
+export const CONTENT_ARTICLES: Record<ContentArticle, { title: string }> = {
   1: { title: "Allgemeine Informationen" },
   2: { title: "Erstmeldung" },
   3: { title: "Zwischenmeldung" },
   4: { title: "Abschlussmeldung" },
+  6: { title: "Freiwillige Meldung erheblicher Cyberbedrohungen" },
 };
 
+/** Fundstelle einer Angabe, z. B. "Art. 2 Buchst. a–c". */
+export function fieldRef(article: ContentArticle, letters: string): string {
+  return `Art. ${article} Buchst. ${letters}`;
+}
+
 /* ---------------------------------------------------------------------------
- * Feld 2.7 – Entdeckung des Vorfalls
+ * Art. 2 Buchst. f – Wie wurde der Vorfall erkannt?
  * ------------------------------------------------------------------------- */
 
 export const DETECTION_SOURCES = [
@@ -40,18 +48,47 @@ export const DETECTION_SOURCES = [
   { id: "internal_audit", label: "Interne Revision" },
   { id: "external_audit", label: "Externe Prüfung" },
   { id: "clients", label: "Kunden" },
-  { id: "counterparts", label: "Finanzielle Gegenparteien" },
+  { id: "counterparts", label: "Gegenparteien im Finanzbereich" },
   { id: "third_party", label: "Drittdienstleister" },
   { id: "attacker", label: "Angreifer" },
   { id: "monitoring", label: "Überwachungssysteme" },
-  { id: "authority", label: "Behörde/Strafverfolgung" },
+  { id: "authority", label: "Behörde oder Strafverfolgung" },
   { id: "other", label: "Sonstiges" },
 ] as const;
 
 export type DetectionSource = (typeof DETECTION_SOURCES)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 2.6 – Betroffene EWR-Mitgliedstaaten (ISO 3166 ALPHA-2)
+ * Art. 2 Buchst. g – Ursprung des Vorfalls
+ * ------------------------------------------------------------------------- */
+
+export const INCIDENT_ORIGINS = [
+  {
+    id: "own_entity",
+    label: "Beim Finanzunternehmen selbst",
+  },
+  {
+    id: "third_party_provider",
+    label: "Bei einem Drittdienstleister",
+    hint: "Einschließlich konzerninterner Drittdienstleister.",
+  },
+  {
+    id: "other_financial_entity",
+    label: "Bei einem anderen Finanzunternehmen",
+  },
+  { id: "unknown", label: "Noch nicht bekannt" },
+] as const;
+
+export type IncidentOrigin = (typeof INCIDENT_ORIGINS)[number]["id"];
+
+/** Ursprünge, die einen Dritten benennen lassen. */
+export const EXTERNAL_ORIGINS: readonly IncidentOrigin[] = [
+  "third_party_provider",
+  "other_financial_entity",
+];
+
+/* ---------------------------------------------------------------------------
+ * Art. 2 Buchst. e – Betroffene Mitgliedstaaten (ISO 3166 ALPHA-2)
  * ------------------------------------------------------------------------- */
 
 export const MEMBER_STATES = [
@@ -89,38 +126,34 @@ export const MEMBER_STATES = [
 
 export type MemberState = (typeof MEMBER_STATES)[number]["id"];
 
-export const MEMBER_STATE_BY_ID: Record<
-  MemberState,
-  (typeof MEMBER_STATES)[number]
-> = Object.fromEntries(MEMBER_STATES.map((s) => [s.id, s])) as Record<
-  MemberState,
-  (typeof MEMBER_STATES)[number]
->;
-
 /* ---------------------------------------------------------------------------
- * Feld 3.12 / 3.17 – Tatsächliche oder geschätzte Werte
+ * Art. 3 Buchst. d – Inwieweit sind die Einstufungskriterien erfüllt?
+ *
+ * Die Zahlenangaben zu den Kriterien dürfen geschätzt sein, solange die
+ * tatsächlichen Werte nicht feststehen (Art. 1 Abs. 1, Art. 3 DelVO
+ * (EU) 2024/1772). Ob geschätzt oder ermittelt wurde, gehört zur Angabe.
  * ------------------------------------------------------------------------- */
 
 export const FIGURE_BASES = [
-  { id: "actual", label: "Tatsächliche Zahlen" },
+  { id: "actual", label: "Tatsächliche Werte" },
   { id: "estimate", label: "Schätzungen" },
   { id: "no_impact", label: "Keine Auswirkungen" },
 ] as const;
 
 export type FigureBasis = (typeof FIGURE_BASES)[number]["id"];
 
-/** Feld 3.17 kennt keine Option "keine Auswirkungen". */
+/** Für Dauer und Ausfallzeit gibt es keine Option "keine Auswirkungen". */
 export const DURATION_BASES = FIGURE_BASES.filter((b) => b.id !== "no_impact");
 
-/* ---------------------------------------------------------------------------
- * Feld 3.18 – Arten der Auswirkungen in den Mitgliedstaaten (Art. 4 RTS)
- * ------------------------------------------------------------------------- */
-
+/**
+ * Bereiche, in denen sich der Vorfall in anderen Mitgliedstaaten auswirkt
+ * (Art. 4 Buchst. a–c DelVO (EU) 2024/1772).
+ */
 export const IMPACT_TYPES = [
   { id: "clients", label: "Kunden" },
-  { id: "counterparts", label: "Finanzielle Gegenparteien" },
+  { id: "counterparts", label: "Gegenparteien im Finanzbereich" },
   { id: "branches", label: "Zweigniederlassungen" },
-  { id: "group_entities", label: "Gruppenunternehmen" },
+  { id: "group_entities", label: "Finanzunternehmen der Gruppe" },
   { id: "market_infrastructure", label: "Finanzmarktinfrastrukturen" },
   { id: "third_parties", label: "Drittdienstleister" },
 ] as const;
@@ -128,43 +161,31 @@ export const IMPACT_TYPES = [
 export type ImpactType = (typeof IMPACT_TYPES)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 3.23 – Vorfallsart
+ * Art. 3 Buchst. e – Art des IKT-bezogenen Vorfalls
  * ------------------------------------------------------------------------- */
 
 export const INCIDENT_TYPES = [
-  {
-    id: "cybersecurity",
-    label: "Cybersicherheitsbezogen",
-    hint: "Bei einem Angriff – auch auf einen Dienstleister – stets auszuwählen.",
-  },
+  { id: "cybersecurity", label: "Cybersicherheitsbezogen" },
   { id: "process_failure", label: "Prozessversagen" },
   { id: "system_failure", label: "Systemversagen" },
-  {
-    id: "external_event",
-    label: "Externes Ereignis",
-    hint: "Stets auszuwählen, wenn der Vorfall bei einem Dritten aufgetreten ist.",
-  },
-  {
-    id: "payment_related",
-    label: "Zahlungsbezogen",
-    hint: "Bei Zahlungsvorfällen stets auszuwählen.",
-  },
+  { id: "external_event", label: "Externes Ereignis" },
+  { id: "payment_related", label: "Zahlungsbezogen" },
   { id: "other", label: "Sonstiges" },
 ] as const;
 
 export type IncidentType = (typeof INCIDENT_TYPES)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 3.25 – Bedrohungen und Techniken des Angreifers
+ * Art. 3 Buchst. f – Bedrohungen und Techniken des Angreifers
  * ------------------------------------------------------------------------- */
 
 export const THREAT_TECHNIQUES = [
-  { id: "social_engineering", label: "Social Engineering (inkl. Phishing)" },
+  { id: "social_engineering", label: "Social Engineering, einschließlich Phishing" },
   { id: "ddos", label: "(D)DoS" },
   { id: "identity_theft", label: "Identitätsdiebstahl" },
   {
     id: "data_encryption",
-    label: "Datenverschlüsselung (inkl. Ransomware)",
+    label: "Datenverschlüsselung mit weitergehenden Folgen, einschließlich Ransomware",
   },
   { id: "resource_hijacking", label: "Kaperung von Ressourcen" },
   {
@@ -180,7 +201,7 @@ export const THREAT_TECHNIQUES = [
 export type ThreatTechnique = (typeof THREAT_TECHNIQUES)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 3.27 – Betroffene Funktionsbereiche
+ * Art. 3 Buchst. g – Betroffene Funktionsbereiche
  * ------------------------------------------------------------------------- */
 
 export const FUNCTIONAL_AREAS = [
@@ -197,7 +218,7 @@ export const FUNCTIONAL_AREAS = [
 export type FunctionalArea = (typeof FUNCTIONAL_AREAS)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 3.28 – Betroffene Infrastrukturkomponenten
+ * Art. 3 Buchst. h – Betroffene Infrastrukturkomponenten
  * ------------------------------------------------------------------------- */
 
 export const INFRASTRUCTURE_ANSWERS = [
@@ -209,11 +230,15 @@ export const INFRASTRUCTURE_ANSWERS = [
 export type InfrastructureAnswer = (typeof INFRASTRUCTURE_ANSWERS)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Feld 3.31 – Meldung an andere Behörden
+ * Art. 3 Buchst. j / Art. 6 Buchst. h – Meldung an andere Behörden
  * ------------------------------------------------------------------------- */
 
 export const NOTIFIED_AUTHORITIES = [
-  { id: "law_enforcement", label: "Polizei/Strafverfolgung" },
+  {
+    id: "law_enforcement",
+    label: "Strafverfolgungsbehörde",
+    hint: "Im weitesten Sinne: Polizei, Ordnungsbehörden und Staatsanwaltschaften, die Cyberkriminalität verfolgen.",
+  },
   { id: "csirt", label: "CSIRT" },
   { id: "data_protection", label: "Datenschutzbehörde" },
   { id: "cyber_agency", label: "Nationale Cybersicherheitsbehörde" },
@@ -224,17 +249,16 @@ export const NOTIFIED_AUTHORITIES = [
 export type NotifiedAuthority = (typeof NOTIFIED_AUTHORITIES)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Felder 4.1–4.3 – Einstufung der Ursachen
+ * Art. 4 Buchst. a – Ursachen des Vorfalls
  *
- * Dreistufig: übergeordnete Kategorie (4.1), detaillierte Kategorie (4.2) und
- * – nur für vier Kategorien des Prozessversagens – die weitergehende
- * Einstufung (4.3).
+ * Dreistufig: übergeordnete Kategorie, detaillierte Kategorie und – für vier
+ * Kategorien des Prozessversagens – die weitergehende Einstufung.
  * ------------------------------------------------------------------------- */
 
 export interface RootCauseDetail {
   id: string;
   label: string;
-  /** Weitergehende Einstufung (4.3); Pflichtangabe, sobald vorhanden. */
+  /** Weitergehende Einstufung; sobald vorhanden, ist sie anzugeben. */
   further?: readonly { id: string; label: string }[];
 }
 
@@ -252,7 +276,7 @@ export const ROOT_CAUSE_CATEGORIES = [
       { id: "intentional_internal", label: "Vorsätzliche interne Handlungen" },
       {
         id: "physical_damage",
-        label: "Vorsätzliche physische Schäden/Manipulation/Diebstahl",
+        label: "Vorsätzliche physische Schäden, Manipulation oder Diebstahl",
       },
       { id: "fraud", label: "Betrügerische Handlungen" },
     ],
@@ -263,7 +287,7 @@ export const ROOT_CAUSE_CATEGORIES = [
     details: [
       {
         id: "monitoring",
-        label: "Unzureichende Überwachung und Kontrolle",
+        label: "Unzureichende oder mangelhafte Überwachung und Kontrolle",
         further: [
           { id: "policy_compliance", label: "Überwachung der Einhaltung von Richtlinien" },
           { id: "third_party", label: "Überwachung von Drittdienstleistern" },
@@ -273,25 +297,25 @@ export const ROOT_CAUSE_CATEGORIES = [
           { id: "logging", label: "Protokollierung" },
         ],
       },
-      { id: "roles", label: "Unzureichende/unklare Rollen und Zuständigkeiten" },
+      { id: "roles", label: "Unzureichende oder unklare Rollen und Zuständigkeiten" },
       {
         id: "risk_management",
         label: "Versagen des IKT-Risikomanagementprozesses",
         further: [
-          { id: "risk_tolerance", label: "Keine genauen Risikotoleranzen festgelegt" },
-          { id: "threat_assessment", label: "Unzureichende Bedrohungs- und Schwachstellenbewertung" },
-          { id: "risk_treatment", label: "Unzureichende Maßnahmen zur Risikobehandlung" },
+          { id: "risk_tolerance", label: "Versäumnis, genaue Risikotoleranzen festzulegen" },
+          { id: "threat_assessment", label: "Unzureichende Bewertung von Bedrohungen und Schwachstellen" },
+          { id: "risk_treatment", label: "Unzureichende Maßnahmen für die Risikobehandlung" },
           { id: "residual_risk", label: "Unzureichendes Management der IKT-Restrisiken" },
         ],
       },
       {
         id: "ict_operations",
-        label: "Unzureichende IKT- und IKT-Sicherheitsabläufe",
+        label: "Unzureichende oder nicht funktionierende IKT- und IKT-Sicherheitsabläufe",
         further: [
           { id: "patch", label: "Schwachstellen- und Patch-Management" },
           { id: "change", label: "Änderungsmanagement" },
           { id: "capacity", label: "Kapazitäts- und Leistungsmanagement" },
-          { id: "asset", label: "IKT-Asset-Management und Informationsklassifizierung" },
+          { id: "asset", label: "Management von IKT-Assets und Informationsklassifizierung" },
           { id: "backup", label: "Sicherung und Wiederherstellung" },
           { id: "error_handling", label: "Fehlerbehandlung" },
         ],
@@ -307,9 +331,9 @@ export const ROOT_CAUSE_CATEGORIES = [
         further: [
           {
             id: "procurement_development",
-            label: "Unzureichende Beschaffung, Entwicklung und Wartung",
+            label: "Unzureichende Beschaffung, Entwicklung und Wartung von IKT-Systemen",
           },
-          { id: "software_testing", label: "Unzureichende oder fehlgeschlagene Software-Tests" },
+          { id: "software_testing", label: "Unzureichende Software-Tests oder Versagen von Software-Tests" },
         ],
       },
       { id: "other", label: "Sonstiges" },
@@ -317,12 +341,12 @@ export const ROOT_CAUSE_CATEGORIES = [
   },
   {
     id: "system_failure",
-    label: "Systemversagen/-störung",
+    label: "Systemversagen oder -störung",
     details: [
       { id: "hardware_capacity", label: "Hardwarekapazität und -leistung" },
       { id: "hardware_maintenance", label: "Wartung der Hardware" },
-      { id: "hardware_obsolescence", label: "Veralterung/Alterung der Hardware" },
-      { id: "software_configuration", label: "Softwarekompatibilität/-konfiguration" },
+      { id: "hardware_obsolescence", label: "Veralterung oder Alterung der Hardware" },
+      { id: "software_configuration", label: "Softwarekompatibilität und -konfiguration" },
       { id: "software_performance", label: "Softwareleistung" },
       { id: "network_configuration", label: "Netzwerkkonfiguration" },
       { id: "physical_damage", label: "Physische Schäden" },
@@ -345,7 +369,7 @@ export const ROOT_CAUSE_CATEGORIES = [
     id: "external_event",
     label: "Externes Ereignis",
     details: [
-      { id: "natural_disaster", label: "Naturkatastrophen/höhere Gewalt" },
+      { id: "natural_disaster", label: "Naturkatastrophen oder höhere Gewalt" },
       { id: "third_party_outage", label: "Ausfälle bei Dritten" },
       { id: "other", label: "Sonstiges" },
     ],
@@ -368,7 +392,7 @@ export const ROOT_CAUSE_BY_ID: Record<RootCauseCategory, RootCauseCategoryDef> =
   ) as Record<RootCauseCategory, RootCauseCategoryDef>;
 
 /**
- * Zusammengesetzte Kennung einer detaillierten Ursache (4.2), z. B.
+ * Zusammengesetzte Kennung einer detaillierten Ursache, z. B.
  * "process_failure.monitoring" – die Detailkategorien sind nur innerhalb ihrer
  * übergeordneten Kategorie eindeutig.
  */
@@ -376,12 +400,10 @@ export function rootCauseDetailId(category: string, detail: string): string {
   return `${category}.${detail}`;
 }
 
-/** Alle gültigen Detailkennungen (4.2) über alle Kategorien hinweg. */
 export const ROOT_CAUSE_DETAIL_IDS: string[] = ROOT_CAUSE_TREE.flatMap((c) =>
   c.details.map((d) => rootCauseDetailId(c.id, d.id)),
 );
 
-/** Alle gültigen Kennungen der weitergehenden Einstufung (4.3). */
 export const ROOT_CAUSE_FURTHER_IDS: string[] = ROOT_CAUSE_TREE.flatMap((c) =>
   c.details.flatMap((d) =>
     (d.further ?? []).map((f) => `${rootCauseDetailId(c.id, d.id)}.${f.id}`),
@@ -389,7 +411,7 @@ export const ROOT_CAUSE_FURTHER_IDS: string[] = ROOT_CAUSE_TREE.flatMap((c) =>
 );
 
 /* ---------------------------------------------------------------------------
- * Feld 4.10 – Risiko für kritische Funktionen zu Abwicklungszwecken
+ * Art. 4 Buchst. d – Für die Abwicklungsbehörden relevante Informationen
  * ------------------------------------------------------------------------- */
 
 export const RESOLUTION_RISK_ANSWERS = [
@@ -402,11 +424,21 @@ export type ResolutionRiskAnswer =
   (typeof RESOLUTION_RISK_ANSWERS)[number]["id"];
 
 /* ---------------------------------------------------------------------------
- * Fristen aus Sicht des Meldeformulars (Art. 19 Abs. 4 DORA)
+ * Art. 6 Buchst. f – Status der erheblichen Cyberbedrohung
  * ------------------------------------------------------------------------- */
 
-/** Erstmeldung: spätestens 4 Stunden nach der Einstufung als schwerwiegend. */
-export const INITIAL_DEADLINE_AFTER_CLASSIFICATION_HOURS = 4;
+export const THREAT_STATUSES = [
+  { id: "ongoing", label: "Anhaltend" },
+  { id: "contained", label: "Eingedämmt" },
+  { id: "resolved", label: "Beendet" },
+] as const;
 
-/** Erstmeldung: jedenfalls binnen 24 Stunden nach Kenntniserlangung. */
-export const INITIAL_DEADLINE_AFTER_DETECTION_HOURS = 24;
+export type ThreatStatus = (typeof THREAT_STATUSES)[number]["id"];
+
+export const THREAT_ACTIVITY_CHANGES = [
+  { id: "increased", label: "Zugenommen" },
+  { id: "unchanged", label: "Unverändert" },
+  { id: "decreased", label: "Abgenommen" },
+] as const;
+
+export type ThreatActivityChange = (typeof THREAT_ACTIVITY_CHANGES)[number]["id"];

@@ -13,7 +13,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
-import { REPORT_TYPE_BY_ID } from "@/lib/dora/reporting";
+import {
+  REPORT_TYPE_BY_ID,
+  SUBMISSION_KIND_BY_ID,
+} from "@/lib/dora/reporting";
 import {
   STORAGE_KEYS,
   clearSession,
@@ -59,14 +62,19 @@ export default function ReportConfirmationPage() {
     );
   }
 
-  const reportType = REPORT_TYPE_BY_ID[receipt.reportType];
+  // Die freiwillige Meldung einer erheblichen Cyberbedrohung kennt keine Art
+  // der Übermittlung (Art. 1 Buchst. a gilt nur für die Vorfallmeldung).
+  const kind = SUBMISSION_KIND_BY_ID[receipt.kind];
+  const reportType = receipt.reportType
+    ? REPORT_TYPE_BY_ID[receipt.reportType]
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-8">
       <PageHeader
         step="Schritt 03 · Bestätigung"
         title="Meldung erfasst"
-        desc="Quittung der Übermittlung an die zuständige Behörde. Folgemeldungen zu diesem Vorfall führen denselben Referenzcode (Feld 2.1) und die Vorgangsnummer der Behörde (Feld 3.1)."
+        desc="Quittung der Übermittlung an die zuständige Behörde. Folgemeldungen führen denselben Referenzcode des Vorfalls (Art. 2 Buchst. a) und den Referenzcode der Behörde (Art. 3 Buchst. a)."
       />
 
       <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
@@ -77,29 +85,33 @@ export default function ReportConfirmationPage() {
               <CheckCircle2 className="size-6" />
             </span>
             <div className="space-y-1">
-              <h2 className="text-lg font-semibold">{reportType.label}</h2>
+              <h2 className="text-lg font-semibold">
+                {reportType ? reportType.label : kind.label}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {reportType.description}
+                {reportType ? reportType.description : kind.description}
               </p>
             </div>
           </div>
 
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Detail label="Vorgangsnummer der Behörde (3.1)">
+            <Detail label="Referenzcode der Behörde">
               <span className="font-mono">{receipt.submissionId}</span>
             </Detail>
             <Detail label="Zeitpunkt">
               {formatDateTime(receipt.submittedAt)}
             </Detail>
-            <Detail label="Finanzunternehmen">{receipt.institutionName}</Detail>
+            <Detail label="Finanzunternehmen">{receipt.entityName}</Detail>
             {receipt.competentAuthority && (
               <Detail label="Zuständige Behörde">
                 {receipt.competentAuthority}
               </Detail>
             )}
-            <Detail label="Referenzcode des Vorfalls (2.1)">
-              <span className="font-mono">{receipt.incidentReference}</span>
-            </Detail>
+            {receipt.incidentReferenceCode && (
+              <Detail label="Referenzcode des Vorfalls">
+                <span className="font-mono">{receipt.incidentReferenceCode}</span>
+              </Detail>
+            )}
             <Detail label="Übertragungsweg">{receipt.channel}</Detail>
           </dl>
 
@@ -112,8 +124,8 @@ export default function ReportConfirmationPage() {
             </div>
             {receipt.nextDeadlines.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                {receipt.reportType === "reclassification"
-                  ? "Mit der Rückstufung endet der Meldezyklus für diesen Vorfall."
+                {receipt.kind === "cyber_threat"
+                  ? "Die freiwillige Meldung einer erheblichen Cyberbedrohung löst keine weiteren Fristen aus."
                   : "Mit der Abschlussmeldung ist der Meldezyklus für diesen Vorfall beendet."}
               </p>
             ) : (

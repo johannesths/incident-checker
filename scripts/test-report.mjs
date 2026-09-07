@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Prüft die Meldung schwerwiegender IKT-bezogener Vorfälle gegen die Vorgaben
- * des amtlichen Meldeformulars: Anhang I und II der Durchführungsverordnung
- * (EU) 2025/302 sowie die Ausfüllhinweise der BaFin.
+ * Prüft die Meldungen nach Art. 19 DORA gegen die Delegierte Verordnung (EU)
+ * 2025/301: Inhalt der Erst-, Zwischen- und Abschlussmeldung (Art. 1 bis 4),
+ * Fristen (Art. 5) und Inhalt der freiwilligen Meldung erheblicher
+ * Cyberbedrohungen (Art. 6).
  *
  * Der Test spricht die laufende Anwendung über /api/report an – damit deckt er
  * Schema, Route und Plausibilitätsprüfungen gemeinsam ab. Voraussetzung ist
@@ -25,27 +26,35 @@ function hoursAgo(hours) {
   return new Date(Date.now() - hours * HOUR_MS).toISOString().slice(0, 16);
 }
 
-/** Vollständige, widerspruchsfreie Erstmeldung eines schwerwiegenden Vorfalls. */
-const initialReport = {
-  // 1 Allgemeine Informationen
-  reportType: "initial",
-  submittingEntityName: "Musterbank AG",
-  submittingEntityCode: "529900MUSTERBANK0001",
+/** Art. 1 – allgemeine Informationen, gemeinsam für beide Meldungen. */
+const generalInformation = {
+  entityName: "Musterbank AG",
+  entityLei: "529900MUSTERBANK0001",
   entityType: "credit_institution",
-  nationalScopeOnly: false,
-  affectedEntityNames: "Musterbank AG",
-  affectedEntityLeis: "529900MUSTERBANK0001",
+  submittingEntityName: "",
+  submittingEntityCode: "",
+  aggregatedEntityNames: "",
+  aggregatedEntityLeis: "",
   primaryContactName: "Jana Musterfrau",
   primaryContactEmail: "ikt-meldewesen@musterbank.example",
   primaryContactPhone: "+49 69 12345678",
   secondContactName: "",
   secondContactEmail: "",
   secondContactPhone: "",
-  ultimateParentName: "",
-  ultimateParentLei: "",
+  groupParentName: "",
+  groupParentLei: "",
   reportingCurrency: "EUR",
-  // 2 Erstmeldung
-  incidentReference: "INC-2026-0042",
+  nis2EssentialEntity: true,
+  competentAuthority:
+    "Bundesanstalt für Finanzdienstleistungsaufsicht (BaFin)",
+};
+
+/** Vollständige, widerspruchsfreie Erstmeldung (Art. 2). */
+const initialReport = {
+  kind: "incident",
+  ...generalInformation,
+  reportType: "initial",
+  incidentReferenceCode: "INC-2026-0042",
   detectedAt: hoursAgo(3),
   classifiedAt: hoursAgo(2),
   description:
@@ -53,14 +62,15 @@ const initialReport = {
   classificationCriteria: ["critical_services", "duration_downtime"],
   affectedMemberStates: ["DE"],
   detectionSource: "monitoring",
-  originatesFromThirdParty: false,
-  thirdPartyDetails: "",
+  incidentOrigin: "own_entity",
+  originEntityDetails: "",
   businessContinuityActivated: false,
+  reclassifiedAsNonMajor: false,
+  reclassificationDetails: "",
   additionalInformation: "",
-  // 3 Zwischenmeldung
-  bafinIncidentId: "",
+  authorityReferenceCode: "",
   occurredAt: "",
-  servicesRestoredAt: "",
+  regularOperationsResumedAt: "",
   clientsAffected: "",
   clientsAffectedPercent: "",
   counterpartsAffected: "",
@@ -94,37 +104,32 @@ const initialReport = {
   temporaryMeasuresTaken: false,
   temporaryMeasuresDescription: "",
   indicatorsOfCompromise: "",
-  // 4 Abschlussmeldung
   rootCauseCategories: [],
   rootCauseDetails: [],
   rootCauseFurther: [],
   rootCauseOther: "",
   rootCauseDescription: "",
-  resolutionSummary: "",
-  rootCauseAddressedAt: "",
   incidentResolvedAt: "",
-  resolutionDelayReason: "",
+  rootCauseAddressedAt: "",
+  counterMeasures: "",
   resolutionRisk: null,
   resolutionAuthorityInformation: "",
-  economicImpactDescription: "",
   grossCostsAndLosses: "",
   financialRecoveries: "",
+  economicImpactDescription: "",
   recurringIncidents: false,
   recurringIncidentCount: "",
   firstRecurringIncidentAt: "",
-  // Angaben der Anwendung
+  delayReason: "",
   classification: "major",
-  competentAuthority:
-    "Bundesanstalt für Finanzdienstleistungsaufsicht (BaFin)",
-  voluntary: false,
 };
 
-/** Ergänzungen des Abschnitts 3, widerspruchsfrei zur Erstmeldung. */
-const section3 = {
+/** Ergänzungen der Zwischenmeldung (Art. 3), widerspruchsfrei zur Erstmeldung. */
+const intermediateAdditions = {
   reportType: "intermediate",
-  bafinIncidentId: "MLD-20260907-ABC123",
+  authorityReferenceCode: "MLD-20260907-ABC123",
   occurredAt: hoursAgo(6),
-  servicesRestoredAt: hoursAgo(2),
+  regularOperationsResumedAt: hoursAgo(2),
   durationHours: "5",
   downtimeHours: "4",
   durationBasis: "estimate",
@@ -141,26 +146,47 @@ const section3 = {
   temporaryMeasuresDescription: "Ausweichstandort aktiviert.",
 };
 
-/** Ergänzungen des Abschnitts 4, widerspruchsfrei zu Abschnitt 3. */
-const section4 = {
+/** Ergänzungen der Abschlussmeldung (Art. 4). */
+const finalAdditions = {
   reportType: "final",
   rootCauseCategories: ["system_failure"],
   rootCauseDetails: ["system_failure.hardware_capacity"],
   rootCauseDescription:
     "Die Speicherkapazität des Datenbankclusters war erschöpft; die Überwachung schlug nicht an.",
-  resolutionSummary:
+  counterMeasures:
     "Kapazität erweitert, Schwellenwerte der Überwachung angepasst.",
   rootCauseAddressedAt: hoursAgo(2),
   incidentResolvedAt: hoursAgo(1),
   resolutionRisk: "not_applicable",
   grossCostsAndLosses: "50000",
   economicImpactDescription: "Beratungs- und Personalkosten der Behebung.",
-  // Feld 3.15 misst den Zeitraum zwischen Feld 3.2 und Feld 4.8.
+  // Die Dauer misst den Zeitraum vom Eintreten bis zur Behebung.
   durationHours: "5",
 };
 
-const intermediateReport = { ...initialReport, ...section3 };
-const finalReport = { ...intermediateReport, ...section4 };
+const intermediateReport = { ...initialReport, ...intermediateAdditions };
+const finalReport = { ...intermediateReport, ...finalAdditions };
+
+/** Freiwillige Meldung einer erheblichen Cyberbedrohung (Art. 6). */
+const cyberThreat = {
+  kind: "cyber_threat",
+  ...generalInformation,
+  detectedAt: hoursAgo(5),
+  relevantTimestamps: "Erste Auffälligkeiten im Netzwerkverkehr vor 12 Stunden.",
+  description:
+    "Gezielte Phishing-Kampagne gegen Beschäftigte des Zahlungsverkehrs mit gefälschten Anmeldeseiten.",
+  potentialImpact:
+    "Bei erfolgreichem Zugriff wären Zahlungsaufträge von Kunden manipulierbar.",
+  classificationCriteria: ["critical_services", "data_losses"],
+  threatStatus: "ongoing",
+  threatActivityChange: "increased",
+  preventiveMeasures: "Anmeldeseiten gesperrt, Beschäftigte sensibilisiert.",
+  notifiedAuthorities: ["csirt"],
+  notifiedAuthoritiesOther: "",
+  notifiedFinancialEntities: "Zwei Institute derselben Gruppe.",
+  indicatorsOfCompromise: "phishing.example / 203.0.113.10",
+  additionalInformation: "",
+};
 
 async function submit(report) {
   const res = await fetch(ENDPOINT, {
@@ -179,7 +205,7 @@ async function submit(report) {
 
 const CASES = [
   {
-    group: "Meldungstypen und Meldepflicht (Art. 19 DORA, Art. 5 ITS)",
+    group: "Art. 1 und 5 – Arten der Übermittlung und Fristen",
     cases: [
       {
         id: "Vollständige Erstmeldung",
@@ -196,8 +222,7 @@ const CASES = [
         want: "angenommen, mit Frist für die Abschlussmeldung",
         report: intermediateReport,
         check: (r) =>
-          r.status === 200 &&
-          r.body.nextDeadlines[0]?.reportType === "final",
+          r.status === 200 && r.body.nextDeadlines[0]?.reportType === "final",
       },
       {
         id: "Vollständige Abschlussmeldung",
@@ -206,100 +231,80 @@ const CASES = [
         check: (r) => r.status === 200 && r.body.nextDeadlines.length === 0,
       },
       {
-        id: "Nicht schwerwiegender Vorfall ohne freiwillige Meldung",
-        want: "abgelehnt – keine Meldepflicht (HTTP 409)",
-        report: { ...initialReport, classification: "non_major" },
-        check: (r) => r.status === 409,
+        id: "Folgemeldung ohne Referenzcode der Behörde",
+        want: "abgelehnt – Art. 3 Buchst. a verlangt ihn",
+        report: { ...intermediateReport, authorityReferenceCode: "" },
+        check: (r) => r.checks.includes("missing_authority_reference"),
       },
       {
-        id: "Nicht schwerwiegender Vorfall als freiwillige Meldung",
-        want: "angenommen (Art. 19 Abs. 2 DORA)",
+        id: "Erstmeldung nach Fristablauf ohne Begründung",
+        want: "angenommen, aber mit Hinweis auf Art. 5 Abs. 3",
         report: {
           ...initialReport,
-          classification: "non_major",
-          classificationCriteria: [],
-          voluntary: true,
+          detectedAt: hoursAgo(40),
+          classifiedAt: hoursAgo(30),
         },
+        // Der Hinweis ist kein Widerspruch: die Meldung geht durch.
         check: (r) => r.status === 200,
       },
       {
-        id: "Rückstufung mit Begründung",
-        want: "angenommen, keine weitere Frist",
-        report: {
-          ...initialReport,
-          reportType: "reclassification",
-          classification: "non_major",
-          classificationCriteria: [],
-          bafinIncidentId: "MLD-20260907-ABC123",
-          additionalInformation:
-            "Die Auswirkungen blieben unterhalb sämtlicher Schwellenwerte.",
-        },
-        check: (r) => r.status === 200 && r.body.nextDeadlines.length === 0,
-      },
-      {
-        id: "Rückstufung ohne Begründung in Feld 2.10",
-        want: "abgelehnt – die Gründe sind darzulegen",
-        report: {
-          ...initialReport,
-          reportType: "reclassification",
-          classification: "non_major",
-          classificationCriteria: [],
-          bafinIncidentId: "MLD-20260907-ABC123",
-        },
-        check: (r) => r.checks.includes("reclassification_reason"),
-      },
-      {
-        id: "Folgemeldung ohne Vorgangsnummer der Behörde",
-        want: "abgelehnt – Feld 3.1 ist bei Folgemeldungen Pflicht",
-        report: { ...intermediateReport, bafinIncidentId: "" },
-        check: (r) => r.checks.includes("missing_incident_id"),
+        id: "Einstufung vor der Erkennung",
+        want: "abgelehnt – die Reihenfolge ist unmöglich",
+        report: { ...initialReport, classifiedAt: hoursAgo(4) },
+        check: (r) => r.checks.includes("classified_before_detected"),
       },
     ],
   },
   {
-    group: "Feld 1.x – Identifikation",
+    group: "Art. 1 – Identifikation des Finanzunternehmens",
     cases: [
       {
-        id: "Ungültiger LEI des einreichenden Unternehmens",
+        id: "Ungültiger LEI-Code",
         want: "abgelehnt – 20 alphanumerische Zeichen (HTTP 422)",
-        report: { ...initialReport, submittingEntityCode: "529900" },
+        report: { ...initialReport, entityLei: "529900" },
         check: (r) => r.status === 422 && r.body.issues !== undefined,
       },
       {
-        id: "Zwei betroffene Unternehmen mit zwei LEI",
-        want: "angenommen – aggregierte Meldung nach Art. 7 ITS",
+        id: "Übermittelndes Unternehmen ohne Identifikationscode",
+        want: "abgelehnt – Art. 1 Buchst. c verlangt Name und Code",
+        report: { ...initialReport, submittingEntityName: "IT-Dienst GmbH" },
+        check: (r) => r.checks.includes("submitter_without_code"),
+      },
+      {
+        id: "Aggregierte Meldung mit passenden Namen und LEI",
+        want: "angenommen",
         report: {
           ...initialReport,
-          affectedEntityNames: "Musterbank AG; Musterbank Direkt AG",
-          affectedEntityLeis:
-            "529900MUSTERBANK0001;529900MUSTERBANK0002",
+          aggregatedEntityNames: "Musterbank Direkt AG;Musterbank Leasing AG",
+          aggregatedEntityLeis:
+            "529900MUSTERBANK0002;529900MUSTERBANK0003",
         },
         check: (r) => r.status === 200,
       },
       {
-        id: "Zweiter LEI unvollständig",
-        want: "abgelehnt – jeder LEI muss 20 Zeichen haben",
+        id: "Aggregierte Meldung mit ungleich vielen Einträgen",
+        want: "abgelehnt – die Reihenfolge muss übereinstimmen",
         report: {
           ...initialReport,
-          affectedEntityNames: "Musterbank AG; Musterbank Direkt AG",
-          affectedEntityLeis: "529900MUSTERBANK0001;529900",
+          aggregatedEntityNames: "Musterbank Direkt AG;Musterbank Leasing AG",
+          aggregatedEntityLeis: "529900MUSTERBANK0002",
         },
-        check: (r) => r.status === 422 && r.body.issues !== undefined,
+        check: (r) => r.checks.includes("aggregated_count_mismatch"),
       },
       {
-        id: "Berichtswährung ohne ISO-Code",
-        want: "abgelehnt – ISO 4217, drei Buchstaben",
+        id: "Währung ohne ISO-4217-Code",
+        want: "abgelehnt – drei Buchstaben",
         report: { ...initialReport, reportingCurrency: "Euro" },
         check: (r) => r.status === 422 && r.body.issues !== undefined,
       },
     ],
   },
   {
-    group: "Feld 2.5 / 2.6 – Klassifikationskriterien und Mitgliedstaaten",
+    group: "Art. 2 – Einstufungskriterien, Mitgliedstaaten, Ursprung",
     cases: [
       {
         id: "Meldepflicht ohne Kriterium „Kritische Dienste“",
-        want: "abgelehnt – Art. 8 Abs. 1 RTS verlangt das Kriterium",
+        want: "abgelehnt – Art. 8 Abs. 1 DelVO (EU) 2024/1772",
         report: {
           ...initialReport,
           classificationCriteria: ["duration_downtime"],
@@ -308,7 +313,7 @@ const CASES = [
       },
       {
         id: "Zwei Mitgliedstaaten ohne Kriterium „Geografische Ausbreitung“",
-        want: "abgelehnt – das Kriterium ist zusätzlich zu wählen",
+        want: "abgelehnt – das Kriterium ist zusätzlich anzugeben",
         report: { ...initialReport, affectedMemberStates: ["DE", "AT"] },
         check: (r) => r.checks.includes("states_without_criterion"),
       },
@@ -317,63 +322,66 @@ const CASES = [
         want: "abgelehnt – es sind mindestens zwei Mitgliedstaaten",
         report: {
           ...initialReport,
-          classificationCriteria: [
-            "critical_services",
-            "geographical_spread",
-          ],
+          classificationCriteria: ["critical_services", "geographical_spread"],
         },
         check: (r) => r.checks.includes("criterion_without_states"),
       },
       {
-        id: "Zwei Mitgliedstaaten mit passendem Kriterium",
+        id: "Ursprung bei einem Dritten ohne dessen Bezeichnung",
+        want: "abgelehnt – Art. 2 Buchst. g verlangt Name und Code",
+        report: { ...initialReport, incidentOrigin: "third_party_provider" },
+        check: (r) => r.checks.includes("origin_unnamed"),
+      },
+      {
+        id: "Neueinstufung als nicht schwerwiegend, mit Gründen",
         want: "angenommen",
         report: {
           ...initialReport,
-          affectedMemberStates: ["DE", "AT"],
-          classificationCriteria: [
-            "critical_services",
-            "geographical_spread",
-          ],
+          classification: "non_major",
+          classificationCriteria: [],
+          reclassifiedAsNonMajor: true,
+          reclassificationDetails:
+            "Die Auswirkungen blieben unterhalb sämtlicher Schwellenwerte.",
         },
         check: (r) => r.status === 200,
+      },
+      {
+        id: "Neueinstufung ohne Gründe",
+        want: "abgelehnt – Art. 2 Buchst. i verlangt die Angaben",
+        report: {
+          ...initialReport,
+          classification: "non_major",
+          classificationCriteria: [],
+          reclassifiedAsNonMajor: true,
+        },
+        check: (r) => r.checks.includes("reclassification_without_details"),
+      },
+      {
+        id: "Nicht schwerwiegender Vorfall ohne Neueinstufung",
+        want: "abgelehnt – keine Meldepflicht (HTTP 409)",
+        report: { ...initialReport, classification: "non_major" },
+        check: (r) => r.status === 409,
       },
     ],
   },
   {
-    group: "Feld 2.2 / 2.3 / 3.x – Zeitpunkte",
+    group: "Art. 3 – Zeitpunkte und „Sonstiges“-Angaben",
     cases: [
       {
-        id: "Einstufung vor der Entdeckung",
-        want: "abgelehnt – die Reihenfolge ist unmöglich",
-        report: { ...initialReport, classifiedAt: hoursAgo(4) },
-        check: (r) => r.checks.includes("classified_before_detected"),
-      },
-      {
-        id: "Vorfall nach seiner Entdeckung eingetreten",
-        want: "abgelehnt – Feld 3.2 kann nicht nach Feld 2.2 liegen",
+        id: "Vorfall nach seiner Erkennung eingetreten",
+        want: "abgelehnt – Art. 3 Buchst. b kann nicht nach Art. 2 Buchst. b liegen",
         report: { ...intermediateReport, occurredAt: hoursAgo(1) },
         check: (r) => r.checks.includes("occurred_after_detected"),
       },
       {
-        id: "Wiederherstellung vor dem Eintreten",
-        want: "abgelehnt – Feld 3.3 kann nicht vor Feld 3.2 liegen",
-        report: { ...intermediateReport, servicesRestoredAt: hoursAgo(8) },
-        check: (r) => r.checks.includes("restored_before_occurred"),
+        id: "Geschäftsbetrieb vor dem Eintreten wiederaufgenommen",
+        want: "abgelehnt – die Reihenfolge ist unmöglich",
+        report: { ...intermediateReport, regularOperationsResumedAt: hoursAgo(8) },
+        check: (r) => r.checks.includes("resumed_before_occurred"),
       },
       {
-        id: "Behebung vor dem Eintreten",
-        want: "abgelehnt – Feld 4.8 kann nicht vor Feld 3.2 liegen",
-        report: { ...finalReport, incidentResolvedAt: hoursAgo(9) },
-        check: (r) => r.checks.includes("resolved_before_occurred"),
-      },
-    ],
-  },
-  {
-    group: "Felder mit „Sonstiges“ – Spezifizierungspflicht",
-    cases: [
-      {
-        id: "Vorfallsart „Sonstiges“ ohne Feld 3.24",
-        want: "abgelehnt – die Art ist anzugeben",
+        id: "Vorfallsart „Sonstiges“ ohne Angabe, welche",
+        want: "abgelehnt",
         report: {
           ...intermediateReport,
           incidentTypes: ["system_failure", "other"],
@@ -381,14 +389,14 @@ const CASES = [
         check: (r) => r.checks.includes("incident_type_unspecified"),
       },
       {
-        id: "Technik „Sonstiges“ ohne Feld 3.26",
-        want: "abgelehnt – die Technik ist anzugeben",
+        id: "Technik „Sonstiges“ ohne Angabe, welche",
+        want: "abgelehnt",
         report: { ...intermediateReport, threatTechniques: ["other"] },
         check: (r) => r.checks.includes("technique_unspecified"),
       },
       {
-        id: "Behörde „Andere“ ohne Feld 3.32",
-        want: "abgelehnt – die Behörde ist zu benennen",
+        id: "Behörde „Andere“ ohne Angabe, welche",
+        want: "abgelehnt",
         report: { ...intermediateReport, notifiedAuthorities: ["other"] },
         check: (r) => r.checks.includes("authority_unspecified"),
       },
@@ -404,11 +412,11 @@ const CASES = [
     ],
   },
   {
-    group: "Felder 4.1–4.5 – Ursachen der Abschlussmeldung",
+    group: "Art. 4 – Ursachen, Behebung und Kosten",
     cases: [
       {
         id: "Detailursache ohne übergeordnete Kategorie",
-        want: "abgelehnt – Feld 4.2 setzt Feld 4.1 voraus",
+        want: "abgelehnt – die Einstufung ist dreistufig",
         report: {
           ...finalReport,
           rootCauseCategories: ["human_error"],
@@ -418,7 +426,7 @@ const CASES = [
       },
       {
         id: "Detailursache ohne die verlangte weitergehende Einstufung",
-        want: "abgelehnt – Feld 4.3 ist hier Pflichtangabe",
+        want: "abgelehnt",
         report: {
           ...finalReport,
           rootCauseCategories: ["process_failure"],
@@ -439,8 +447,8 @@ const CASES = [
         check: (r) => r.status === 200,
       },
       {
-        id: "Ursache „Sonstiges“ ohne Feld 4.4",
-        want: "abgelehnt – die Ursache ist anzugeben",
+        id: "Ursache „Sonstiges“ ohne Angabe, welche",
+        want: "abgelehnt",
         report: {
           ...finalReport,
           rootCauseCategories: ["external_event"],
@@ -449,23 +457,64 @@ const CASES = [
         check: (r) => r.checks.includes("root_cause_unspecified"),
       },
       {
-        id: "Abschlussmeldung ohne Ursachenanalyse",
-        want: "abgelehnt – Feld 4.5 ist wesentlicher Bestandteil",
+        id: "Abschlussmeldung ohne Angaben zu den Ursachen",
+        want: "abgelehnt – Art. 4 Buchst. a verlangt sie",
         report: { ...finalReport, rootCauseDescription: "" },
         check: (r) => r.checks.includes("root_cause_without_description"),
       },
       {
-        id: "Wiederholte Vorfälle ohne Zeitpunkt in Feld 4.16",
-        want: "abgelehnt – Datum und Uhrzeit sind anzugeben",
+        id: "Behebung vor dem Eintreten",
+        want: "abgelehnt – die Reihenfolge ist unmöglich",
+        report: { ...finalReport, incidentResolvedAt: hoursAgo(9) },
+        check: (r) => r.checks.includes("resolved_before_occurred"),
+      },
+      {
+        id: "Wiederholte Vorfälle ohne Zeitpunkt des ersten",
+        want: "abgelehnt – Art. 4 Buchst. f verlangt ihn",
         report: { ...finalReport, recurringIncidents: true },
         check: (r) => r.checks.includes("recurring_without_date"),
+      },
+    ],
+  },
+  {
+    group: "Art. 6 – Freiwillige Meldung erheblicher Cyberbedrohungen",
+    cases: [
+      {
+        id: "Vollständige Meldung einer Cyberbedrohung",
+        want: "angenommen, ohne Folgefristen",
+        report: cyberThreat,
+        check: (r) =>
+          r.status === 200 &&
+          r.body.kind === "cyber_threat" &&
+          r.body.reportType === null &&
+          r.body.nextDeadlines.length === 0,
+      },
+      {
+        id: "Ohne Angaben zu den möglichen Auswirkungen",
+        want: "abgelehnt – Art. 6 Buchst. d verlangt sie",
+        report: { ...cyberThreat, potentialImpact: "" },
+        check: (r) => r.status === 422 && r.body.issues !== undefined,
+      },
+      {
+        id: "Ohne Erkennungszeitpunkt",
+        want: "abgelehnt – Art. 6 Buchst. b verlangt ihn",
+        report: { ...cyberThreat, detectedAt: "" },
+        check: (r) => r.status === 422 && r.body.issues !== undefined,
+      },
+      {
+        id: "Cyberbedrohung ohne Meldepflicht des Vorfalls",
+        want: "angenommen – sie ist freiwillig und von der Einstufung unabhängig",
+        report: cyberThreat,
+        check: (r) => r.status === 200,
       },
     ],
   },
 ];
 
 async function main() {
-  console.log(`Meldung nach Anhang I ITS – Prüfung gegen ${ENDPOINT}\n`);
+  console.log(
+    `Meldungen nach der Delegierten VO (EU) 2025/301 – Prüfung gegen ${ENDPOINT}\n`,
+  );
 
   try {
     await fetch(BASE_URL, { method: "HEAD" });
@@ -505,9 +554,7 @@ async function main() {
       if (result.checks.length > 0) {
         console.log(`    Befunde:  ${result.checks.join(", ")}`);
       }
-      console.log(
-        `    Body:     ${JSON.stringify(result.body).slice(0, 400)}`,
-      );
+      console.log(`    Body:     ${JSON.stringify(result.body).slice(0, 400)}`);
     }
     console.log("");
   }

@@ -15,12 +15,15 @@ import {
   FIGURE_BASES,
   FUNCTIONAL_AREAS,
   IMPACT_TYPES,
+  INCIDENT_ORIGINS,
   INCIDENT_TYPES,
   INFRASTRUCTURE_ANSWERS,
   MEMBER_STATES,
   NOTIFIED_AUTHORITIES,
   RESOLUTION_RISK_ANSWERS,
   ROOT_CAUSE_CATEGORIES,
+  THREAT_ACTIVITY_CHANGES,
+  THREAT_STATUSES,
   THREAT_TECHNIQUES,
 } from "@/lib/dora/report-fields";
 import { ENTITY_TYPES, type EntityType } from "@/lib/company/profile";
@@ -204,14 +207,13 @@ export const severityResultSchema = z.object({
 
 export type SeverityResult = z.infer<typeof severityResultSchema>;
 
-
 /* ---------------------------------------------------------------------------
- * Funktion 3: Meldung schwerwiegender IKT-bezogener Vorfälle (Art. 19 DORA)
+ * Funktion 3: Meldungen nach Art. 19 DORA
  *
- * Die Felder und ihre Nummern folgen dem amtlichen Meldeformular: Anhang I
- * (Vorlage) und Anhang II (Datenglossar) der Durchführungsverordnung (EU)
- * 2025/302 sowie den Ausfüllhinweisen der BaFin zur MVP. Siehe
- * @/lib/dora/report-fields.
+ * Inhalt und Fristen richten sich nach der Delegierten Verordnung (EU)
+ * 2025/301 (RTS zu Art. 20 Buchst. a DORA). Die Kommentare nennen zu jeder
+ * Angabe den Artikel und Buchstaben, aus dem sie stammt; die Benennung folgt
+ * dem Verordnungstext (siehe @/lib/dora/report-fields).
  *
  * Zahlenangaben liegen – wie im Unternehmensprofil – als Text vor, damit ein
  * leeres Feld ("keine Angabe") von einer 0 unterscheidbar bleibt.
@@ -224,25 +226,32 @@ const leiSchema = z
   .string()
   .regex(LEI_PATTERN, "Der LEI besteht aus 20 alphanumerischen Zeichen.");
 
-/**
- * Ein oder mehrere LEI-Codes, durch Semikolon getrennt (Feld 1.6; bei
- * aggregierter Meldung nach Art. 7 ITS mehrere Codes in derselben Reihenfolge
- * wie die Namen in Feld 1.5).
- */
-const leiListSchema = z
-  .string()
-  .refine(
-    (v) =>
-      v
-        .split(";")
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .every((part) => LEI_PATTERN.test(part)) &&
-      v.split(";").some((part) => part.trim().length > 0),
-    "Bitte geben Sie je Finanzunternehmen einen LEI aus 20 alphanumerischen Zeichen an, getrennt durch Semikolon.",
-  );
-
 const optionalText = z.string().optional().default("");
+
+/** Leer oder ein LEI. */
+const optionalLei = optionalText.refine(
+  (v) => v === "" || LEI_PATTERN.test(v),
+  "Der LEI besteht aus 20 alphanumerischen Zeichen.",
+);
+
+/**
+ * Leer oder mehrere LEI-Codes, durch Semikolon getrennt – für die aggregierte
+ * Meldung nach Art. 1 Buchst. d.
+ */
+const optionalLeiList = optionalText.refine(
+  (v) =>
+    v === "" ||
+    v
+      .split(";")
+      .map((part) => part.trim())
+      .every((part) => LEI_PATTERN.test(part)),
+  "Bitte geben Sie je Finanzunternehmen einen LEI aus 20 alphanumerischen Zeichen an, getrennt durch Semikolon.",
+);
+
+const optionalEmail = optionalText.refine(
+  (v) => v === "" || /^\S+@\S+\.\S+$/.test(v),
+  "Bitte geben Sie eine gültige E-Mail-Adresse an.",
+);
 
 /** Leer oder eine Zahl ab 0. */
 const numberText = z
@@ -283,241 +292,312 @@ const optionalDateTime = z
 const enumIds = <T extends readonly { id: string }[]>(items: T) =>
   items.map((i) => i.id) as [T[number]["id"], ...T[number]["id"][]];
 
-export const reportInputSchema = z.object({
-  /* --- 1 Allgemeine Informationen --------------------------------------- */
+/* ---------------------------------------------------------------------------
+ * Art. 1 – Allgemeine Informationen
+ *
+ * Gemeinsamer Kopf beider Meldungen: die Vorfallmeldung führt ihn nach Art. 1,
+ * die freiwillige Meldung erheblicher Cyberbedrohungen nach Art. 6 Buchst. a.
+ * ------------------------------------------------------------------------- */
 
-  /** 1.1 Meldungstyp. */
-  reportType: z.enum(reportTypeIds),
-  /** 1.2 Vollständige juristische Bezeichnung des einreichenden Unternehmens. */
-  submittingEntityName: z
+export const generalInformationSchema = z.object({
+  /** Art. 1 Buchst. b: Name des meldenden Finanzunternehmens. */
+  entityName: z
     .string()
-    .min(1, "Bitte geben Sie das einreichende Unternehmen an."),
-  /** 1.3 Identifizierungscode des einreichenden Unternehmens (LEI). */
-  submittingEntityCode: leiSchema,
-  /** 1.4 Art des betroffenen Unternehmens (Art. 2 Abs. 1 Buchst. a–t DORA). */
+    .min(1, "Bitte geben Sie das Finanzunternehmen an."),
+  /** Art. 1 Buchst. b: LEI-Code des Finanzunternehmens. */
+  entityLei: leiSchema,
+  /** Art. 1 Buchst. b: Art des Finanzunternehmens (Art. 2 Abs. 1 DORA). */
   entityType: z.enum(entityTypeIds),
   /**
-   * 1.4 b) Die Meldung erfolgt für ein Unternehmen, das nur über den national
-   * erweiterten Anwendungsbereich (§ 1a Abs. 2a KWG, § 293 Abs. 5 VAG) unter
-   * DORA fällt.
+   * Art. 1 Buchst. c: Unternehmen, das die Meldung für das Finanzunternehmen
+   * übermittelt – nur auszufüllen, wenn das Finanzunternehmen nicht selbst
+   * meldet.
    */
-  nationalScopeOnly: z.boolean().optional().default(false),
-  /** 1.5 Name(n) der betroffenen Finanzunternehmen, ggf. semikolongetrennt. */
-  affectedEntityNames: z
-    .string()
-    .min(1, "Bitte geben Sie das betroffene Finanzunternehmen an."),
-  /** 1.6 LEI-Nummer(n) der betroffenen Finanzunternehmen. */
-  affectedEntityLeis: leiListSchema,
-  /** 1.7 Name des Hauptansprechpartners. */
+  submittingEntityName: optionalText,
+  submittingEntityCode: optionalLei,
+  /**
+   * Art. 1 Buchst. d: weitere Finanzunternehmen, die in einer aggregierten
+   * Meldung erfasst sind; Namen und LEI-Codes in gleicher Reihenfolge.
+   */
+  aggregatedEntityNames: optionalText,
+  aggregatedEntityLeis: optionalLeiList,
+  /**
+   * Art. 1 Buchst. e: Kontaktdaten der Personen, die für die Kommunikation mit
+   * der zuständigen Behörde verantwortlich sind.
+   */
   primaryContactName: z
     .string()
-    .min(1, "Bitte geben Sie einen Hauptansprechpartner an."),
-  /** 1.8 E-Mail-Adresse des Hauptansprechpartners. */
+    .min(1, "Bitte geben Sie eine verantwortliche Person an."),
   primaryContactEmail: z.email("Bitte geben Sie eine gültige E-Mail-Adresse an."),
-  /** 1.9 Telefonnummer des Hauptansprechpartners, mit internationaler Vorwahl. */
   primaryContactPhone: z
     .string()
     .min(1, "Bitte geben Sie eine Telefonnummer mit internationaler Vorwahl an."),
-  /** 1.10 Name der zweiten Kontaktperson oder des verantwortlichen Teams. */
   secondContactName: optionalText,
-  /** 1.11 E-Mail-Adresse der zweiten Kontaktperson. */
-  secondContactEmail: optionalText.refine(
-    (v) => v === "" || /^\S+@\S+\.\S+$/.test(v),
-    "Bitte geben Sie eine gültige E-Mail-Adresse an.",
-  ),
-  /** 1.12 Telefonnummer der zweiten Kontaktperson. */
+  secondContactEmail: optionalEmail,
   secondContactPhone: optionalText,
-  /** 1.13 Name des obersten Mutterunternehmens der Gruppe. */
-  ultimateParentName: optionalText,
-  /** 1.14 LEI-Nummer des obersten Mutterunternehmens. */
-  ultimateParentLei: optionalText.refine(
-    (v) => v === "" || LEI_PATTERN.test(v),
-    "Der LEI besteht aus 20 alphanumerischen Zeichen.",
-  ),
-  /** 1.15 Berichtswährung (ISO 4217); in der MVP ist EUR voreingestellt. */
+  /** Art. 1 Buchst. f: Mutterunternehmen der Gruppe, sofern vorhanden. */
+  groupParentName: optionalText,
+  groupParentLei: optionalLei,
+  /** Art. 1 Buchst. g: Währung, in der monetäre Beträge angegeben werden. */
   reportingCurrency: z
     .string()
     .regex(/^[A-Z]{3}$/, "Bitte geben Sie einen ISO-4217-Code an, z. B. EUR."),
 
-  /* --- 2 Erstmeldung ----------------------------------------------------- */
+  /*
+   * Kein Meldeinhalt, sondern eine Eigenschaft des Unternehmens: Für nach
+   * Art. 3 der Richtlinie (EU) 2022/2555 als wesentlich oder wichtig
+   * eingestufte Unternehmen greift die Wochenendregel des Art. 5 Abs. 4 bei
+   * Erst- und Zwischenmeldungen nicht (Art. 5 Abs. 5).
+   */
+  nis2EssentialEntity: z.boolean().optional().default(false),
+});
 
-  /** 2.1 Vom Finanzunternehmen vergebener Referenzcode, in allen Meldungen gleich. */
-  incidentReference: z
+export type GeneralInformation = z.infer<typeof generalInformationSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Art. 2 bis 4 – Meldung eines schwerwiegenden IKT-bezogenen Vorfalls
+ * ------------------------------------------------------------------------- */
+
+export const reportInputSchema = generalInformationSchema.extend({
+  /** Art. 1 Buchst. a: Art der Übermittlung. */
+  reportType: z.enum(reportTypeIds),
+
+  /* --- Art. 2: Erstmeldung ------------------------------------------------ */
+
+  /** Buchst. a: vom Finanzunternehmen zugewiesener Referenzcode des Vorfalls. */
+  incidentReferenceCode: z
     .string()
     .min(1, "Bitte geben Sie den Referenzcode des Vorfalls an."),
-  /** 2.2 Datum und Uhrzeit der Entdeckung des Vorfalls (UTC). */
+  /** Buchst. b: Datum und Uhrzeit der Erkennung des Vorfalls. */
   detectedAt: requiredDateTime,
-  /** 2.3 Datum und Uhrzeit der Klassifizierung als schwerwiegend (UTC). */
+  /** Buchst. b: Datum und Uhrzeit der Einstufung (Art. 8 DelVO (EU) 2024/1772). */
   classifiedAt: requiredDateTime,
-  /** 2.4 Beschreibung des Vorfalls. */
+  /** Buchst. c: Beschreibung des IKT-bezogenen Vorfalls. */
   description: z
     .string()
     .min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
-  /** 2.5 Klassifikationskriterien, die die Meldung ausgelöst haben. */
+  /** Buchst. d: Kriterien, auf deren Grundlage als schwerwiegend eingestuft wurde. */
   classificationCriteria: z.array(z.enum(criterionIds)).optional().default([]),
-  /** 2.6 Betroffene EWR-Mitgliedstaaten (ISO 3166 ALPHA-2). */
+  /** Buchst. e: Mitgliedstaaten, die von dem Vorfall betroffen sind. */
   affectedMemberStates: z
     .array(z.enum(enumIds(MEMBER_STATES)))
     .optional()
     .default([]),
-  /** 2.7 Durch wen wurde der Vorfall entdeckt? */
+  /** Buchst. f: Angaben dazu, wie der Vorfall erkannt wurde. */
   detectionSource: z.enum(enumIds(DETECTION_SOURCES)).optional().nullable(),
-  /** 2.8 Hat der Vorfall bei einem Dritten seinen Ursprung? */
-  originatesFromThirdParty: z.boolean().optional().default(false),
-  /** 2.8 Name, Identifikationscode und Art des Codes des Dritten. */
-  thirdPartyDetails: optionalText,
-  /** 2.9 Wurde der Geschäftsfortführungsplan aktiviert? */
+  /** Buchst. g: Angaben zum Ursprung des Vorfalls, soweit verfügbar. */
+  incidentOrigin: z.enum(enumIds(INCIDENT_ORIGINS)).optional().nullable(),
+  /** Buchst. g: Name, Identifikationscode und Art des Codes des Dritten. */
+  originEntityDetails: optionalText,
+  /** Buchst. h: Wurde ein Geschäftsfortführungsplan aktiviert? */
   businessContinuityActivated: z.boolean().optional().default(false),
-  /** 2.10 Weitere Informationen; u. a. Begründung verspäteter Meldungen. */
+  /** Buchst. i: Neueinstufung des Vorfalls als nicht schwerwiegend. */
+  reclassifiedAsNonMajor: z.boolean().optional().default(false),
+  /** Buchst. i: Begründung der Neueinstufung. */
+  reclassificationDetails: optionalText,
+  /** Buchst. j: sonstige zweckdienliche Informationen, soweit verfügbar. */
   additionalInformation: optionalText,
 
-  /* --- 3 Zwischenmeldung -------------------------------------------------- */
+  /* --- Art. 3: Zwischenmeldung -------------------------------------------- */
 
-  /** 3.1 Von der Behörde vergebene Vorgangsnummer (BaFin Incident ID). */
-  bafinIncidentId: optionalText,
-  /** 3.2 Datum und Uhrzeit des Eintretens des Vorfalls (UTC). */
+  /** Buchst. a: von der zuständigen Behörde mitgeteilter Referenzcode. */
+  authorityReferenceCode: optionalText,
+  /** Buchst. b: Datum und Uhrzeit des Eintretens des Vorfalls. */
   occurredAt: optionalDateTime,
-  /** 3.3 Datum und Uhrzeit der Wiederherstellung der Dienste (UTC). */
-  servicesRestoredAt: optionalDateTime,
-  /** 3.4 Anzahl der betroffenen Kunden. */
+  /** Buchst. c: Wiederaufnahme des regulären Geschäftsbetriebs. */
+  regularOperationsResumedAt: optionalDateTime,
+
+  /*
+   * Buchst. d: inwieweit die Einstufungskriterien der Delegierten Verordnung
+   * (EU) 2024/1772 erfüllt sind – Kriterium für Kriterium.
+   */
+  /** Art. 1, Art. 9 Abs. 1: betroffene Kunden, Gegenparteien und Transaktionen. */
   clientsAffected: numberText,
-  /** 3.5 Anteil der betroffenen Kunden am betroffenen Dienst in Prozent. */
   clientsAffectedPercent: percentText,
-  /** 3.6 Anzahl der betroffenen finanziellen Gegenparteien. */
   counterpartsAffected: numberText,
-  /** 3.7 Anteil der betroffenen finanziellen Gegenparteien in Prozent. */
   counterpartsAffectedPercent: percentText,
-  /** 3.8 Auswirkungen auf relevante Kunden oder Gegenparteien (Art. 1 Abs. 3 RTS). */
+  /** Art. 1 Abs. 3: als relevant identifizierte Kunden oder Gegenparteien. */
   relevantClientsImpact: optionalText,
-  /** 3.9 Anzahl der betroffenen Transaktionen. */
   transactionsAffected: numberText,
-  /** 3.10 Anteil der betroffenen Transaktionen in Prozent. */
   transactionsAffectedPercent: percentText,
-  /** 3.11 Wert der betroffenen Transaktionen, in der Berichtswährung. */
+  /** In der Währung nach Art. 1 Buchst. g. */
   transactionsValue: numberText,
-  /** 3.12 Sind die Werte der Felder 3.4–3.11 tatsächlich oder geschätzt? */
+  /** Sind die vorstehenden Werte ermittelt oder geschätzt? */
   figuresBasis: z.enum(enumIds(FIGURE_BASES)).optional().nullable(),
-  /** 3.13 Erfüllte Bedingungen des Reputationsschadens (Art. 2 RTS). */
+  /** Art. 2: erfüllte Bedingungen des Reputationsschadens. */
   reputationalImpactConditions: z
     .array(z.enum(reputationIds))
     .optional()
     .default([]),
-  /** 3.14 Kontextinformationen zum Reputationsschaden. */
   reputationalImpactContext: optionalText,
-  /** 3.15 Dauer des Vorfalls in Stunden (Feld 3.2 bis Feld 4.8). */
+  /** Art. 3 Abs. 1: Dauer des Vorfalls in Stunden. */
   durationHours: numberText,
-  /** 3.16 Ausfallzeit des Dienstes in Stunden. */
+  /** Art. 3 Abs. 2: Ausfallzeit des Dienstes in Stunden. */
   downtimeHours: numberText,
-  /** 3.17 Sind Dauer und Ausfallzeit tatsächlich oder geschätzt? */
   durationBasis: z.enum(["actual", "estimate"]).optional().nullable(),
-  /** 3.18 Arten der Auswirkungen in den Mitgliedstaaten (Art. 4 RTS). */
+  /** Art. 4: Bereiche, in denen sich der Vorfall in Mitgliedstaaten auswirkt. */
   memberStateImpactTypes: z
     .array(z.enum(enumIds(IMPACT_TYPES)))
     .optional()
     .default([]),
-  /** 3.19 Beschreibung der Auswirkungen in den betroffenen Mitgliedstaaten. */
   memberStateImpactDescription: optionalText,
-  /** 3.20 Betroffene Schutzziele der Daten (Art. 5 RTS). */
+  /** Art. 5: betroffene Schutzziele der Daten. */
   dataLossDimensions: z.array(z.enum(dataLossIds)).optional().default([]),
-  /** 3.21 Beschreibung der Datenverluste. */
   dataLossDescription: optionalText,
-  /** 3.22 Betroffene kritische Dienste (Art. 6 RTS). */
+  /** Art. 6: betroffene kritische Dienste. */
   criticalServicesDescription: optionalText,
-  /** 3.23 Vorfallsart. */
+
+  /** Buchst. e: Art des IKT-bezogenen Vorfalls. */
   incidentTypes: z.array(z.enum(enumIds(INCIDENT_TYPES))).optional().default([]),
-  /** 3.24 Sonstige Vorfallsart, falls in 3.23 "Sonstiges" gewählt wurde. */
   incidentTypeOther: optionalText,
-  /** 3.25 Vom Bedrohungsakteur eingesetzte Bedrohungen und Techniken. */
+  /** Buchst. f: vom Angreifer artikulierte Bedrohungen und eingesetzte Techniken. */
   threatTechniques: z
     .array(z.enum(enumIds(THREAT_TECHNIQUES)))
     .optional()
     .default([]),
-  /** 3.26 Sonstige Technik, falls in 3.25 "Sonstiges" gewählt wurde. */
   threatTechniqueOther: optionalText,
-  /** 3.27 Betroffene Funktionsbereiche. */
+  /** Buchst. g: betroffene Funktionsbereiche und Geschäftsprozesse. */
   functionalAreas: z
     .array(z.enum(enumIds(FUNCTIONAL_AREAS)))
     .optional()
     .default([]),
-  /** 3.27 Betroffene Geschäftsprozesse in Klarschrift. */
   affectedProcesses: optionalText,
-  /** 3.28 Sind Infrastrukturkomponenten betroffen? */
+  /** Buchst. h: betroffene Infrastrukturkomponenten. */
   infrastructureAffected: z
     .enum(enumIds(INFRASTRUCTURE_ANSWERS))
     .optional()
     .nullable(),
-  /** 3.29 Beschreibung der betroffenen Infrastrukturkomponenten. */
   infrastructureDescription: optionalText,
-  /** 3.30 Sind die finanziellen Interessen der Kunden betroffen? */
+  /** Buchst. i: Auswirkungen auf die finanziellen Interessen von Kunden. */
   clientFinancialInterestAffected: z.boolean().optional().default(false),
-  /** 3.31 Behörden, die über den Vorfall informiert wurden. */
+  /** Buchst. j: Meldung des Vorfalls an andere Behörden. */
   notifiedAuthorities: z
     .array(z.enum(enumIds(NOTIFIED_AUTHORITIES)))
     .optional()
     .default([]),
-  /** 3.32 Spezifizierung der "anderen" Behörden. */
   notifiedAuthoritiesOther: optionalText,
-  /** 3.33 Wurden befristete Maßnahmen ergriffen oder geplant? */
+  /** Buchst. k: befristete Maßnahmen zur Erholung von dem Vorfall. */
   temporaryMeasuresTaken: z.boolean().optional().default(false),
-  /** 3.34 Beschreibung der befristeten Maßnahmen bzw. Grund ihres Ausbleibens. */
   temporaryMeasuresDescription: optionalText,
-  /** 3.35 Kompromittierungsindikatoren (nur für Unternehmen im NIS-2-Anwendungsbereich). */
+  /** Buchst. l: Kompromittierungsindikatoren. */
   indicatorsOfCompromise: optionalText,
 
-  /* --- 4 Abschlussmeldung ------------------------------------------------- */
+  /* --- Art. 4: Abschlussmeldung ------------------------------------------- */
 
-  /** 4.1 Übergeordnete Einstufung der Ursachen. */
+  /** Buchst. a: Angaben zu den Ursachen des Vorfalls. */
   rootCauseCategories: z
     .array(z.enum(enumIds(ROOT_CAUSE_CATEGORIES)))
     .optional()
     .default([]),
-  /** 4.2 Detaillierte Einstufung der Ursachen ("kategorie.detail"). */
   rootCauseDetails: z.array(z.string()).optional().default([]),
-  /** 4.3 Weitergehende Einstufung der Ursachen ("kategorie.detail.weiter"). */
   rootCauseFurther: z.array(z.string()).optional().default([]),
-  /** 4.4 Sonstige Ursache, falls in 4.2 "Sonstiges" gewählt wurde. */
   rootCauseOther: optionalText,
-  /** 4.5 Abfolge der Ereignisse und Ursachenanalyse. */
   rootCauseDescription: optionalText,
-  /** 4.6 Zusammenfassung der Behebung und gewonnene Erkenntnisse. */
-  resolutionSummary: optionalText,
-  /** 4.7 Datum und Uhrzeit der Beseitigung der Ursache (UTC). */
-  rootCauseAddressedAt: optionalDateTime,
-  /** 4.8 Datum und Uhrzeit der Behebung des Vorfalls (UTC). */
+  /** Buchst. b: Behebung des Vorfalls und Beseitigung der Ursache(n). */
   incidentResolvedAt: optionalDateTime,
-  /** 4.9 Begründung einer Abweichung vom geplanten Umsetzungsdatum. */
-  resolutionDelayReason: optionalText,
-  /** 4.10 Risiko für kritische Funktionen zu Abwicklungszwecken. */
+  rootCauseAddressedAt: optionalDateTime,
+  /** Buchst. c: Angaben dazu, wie dem Vorfall entgegengewirkt wurde. */
+  counterMeasures: optionalText,
+  /** Buchst. d: für die Abwicklungsbehörden relevante Informationen. */
   resolutionRisk: z
     .enum(enumIds(RESOLUTION_RISK_ANSWERS))
     .optional()
     .nullable(),
-  /** 4.11 Für die Abwicklungsbehörden relevante Informationen. */
   resolutionAuthorityInformation: optionalText,
-  /** 4.12 Angaben zur Wesentlichkeitsschwelle "Wirtschaftliche Auswirkungen". */
-  economicImpactDescription: optionalText,
-  /** 4.13 Bruttobetrag der direkten und indirekten Kosten und Verluste. */
+  /** Buchst. e: direkte und indirekte Kosten und Verluste, brutto. */
   grossCostsAndLosses: numberText,
-  /** 4.14 Betrag der finanziellen Rückflüsse. */
+  /** Buchst. e: finanzielle Wiedereinziehungen. */
   financialRecoveries: numberText,
-  /** 4.15 Haben sich nicht schwerwiegende Vorfälle wiederholt (Art. 8 Abs. 2 RTS)? */
+  economicImpactDescription: optionalText,
+  /** Buchst. f: wiederholte IKT-bezogene Vorfälle (Art. 8 Abs. 2 DelVO 2024/1772). */
   recurringIncidents: z.boolean().optional().default(false),
-  /** 4.15 Anzahl der wiederholten Vorfälle. */
   recurringIncidentCount: numberText,
-  /** 4.16 Datum und Uhrzeit des ersten wiederkehrenden Vorfalls (UTC). */
   firstRecurringIncidentAt: optionalDateTime,
 
-  /* --- Angaben der Anwendung (nicht Teil des Meldeformulars) -------------- */
+  /* --- Art. 5 Abs. 3: verspätete Übermittlung ----------------------------- */
+
+  /** Gründe für eine Überschreitung der Frist. */
+  delayReason: optionalText,
+
+  /* --- Angaben der Anwendung (nicht Teil des Meldeinhalts) ---------------- */
 
   /** Einstufung aus Schritt 02; steuert die Meldepflicht. */
   classification: z.enum(classificationIds),
   /** Empfängerin der Meldung laut Unternehmensprofil. */
   competentAuthority: optionalText,
-  /** Freiwillige Meldung ohne Meldepflicht (Art. 19 Abs. 2 DORA). */
-  voluntary: z.boolean().optional().default(false),
 });
 
 export type ReportInput = z.infer<typeof reportInputSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Art. 6 – Freiwillige Meldung erheblicher Cyberbedrohungen
+ * ------------------------------------------------------------------------- */
+
+export const cyberThreatInputSchema = generalInformationSchema.extend({
+  /** Buchst. b: Datum und Uhrzeit der Erkennung der Cyberbedrohung. */
+  detectedAt: requiredDateTime,
+  /** Buchst. b: sonstige relevante Zeitstempel. */
+  relevantTimestamps: optionalText,
+  /** Buchst. c: Beschreibung der erheblichen Cyberbedrohung. */
+  description: z
+    .string()
+    .min(10, "Bitte beschreiben Sie die Cyberbedrohung (mind. 10 Zeichen)."),
+  /**
+   * Buchst. d: mögliche Auswirkungen auf das Finanzunternehmen, seine Kunden
+   * oder Gegenparteien im Finanzbereich.
+   */
+  potentialImpact: z
+    .string()
+    .min(10, "Bitte beschreiben Sie die möglichen Auswirkungen."),
+  /**
+   * Buchst. e: Einstufungskriterien, die die Meldung eines schwerwiegenden
+   * Vorfalls ausgelöst hätten, wäre die Cyberbedrohung eingetreten.
+   */
+  classificationCriteria: z.array(z.enum(criterionIds)).optional().default([]),
+  /** Buchst. f: Status der Cyberbedrohung. */
+  threatStatus: z.enum(enumIds(THREAT_STATUSES)).optional().nullable(),
+  /** Buchst. f: Hat sich die Bedrohungsaktivität verändert? */
+  threatActivityChange: z
+    .enum(enumIds(THREAT_ACTIVITY_CHANGES))
+    .optional()
+    .nullable(),
+  /** Buchst. g: Maßnahmen zur Verhinderung des Eintretens. */
+  preventiveMeasures: optionalText,
+  /** Buchst. h: benachrichtigte Behörden. */
+  notifiedAuthorities: z
+    .array(z.enum(enumIds(NOTIFIED_AUTHORITIES)))
+    .optional()
+    .default([]),
+  notifiedAuthoritiesOther: optionalText,
+  /** Buchst. h: benachrichtigte andere Finanzunternehmen. */
+  notifiedFinancialEntities: optionalText,
+  /** Buchst. i: Kompromittierungsindikatoren. */
+  indicatorsOfCompromise: optionalText,
+  /** Buchst. j: sonstige zweckdienliche Informationen, soweit verfügbar. */
+  additionalInformation: optionalText,
+
+  /** Empfängerin der Meldung laut Unternehmensprofil. */
+  competentAuthority: optionalText,
+});
+
+export type CyberThreatInput = z.infer<typeof cyberThreatInputSchema>;
+
+/**
+ * Was übermittelt wird: die Meldung eines schwerwiegenden Vorfalls oder die
+ * freiwillige Meldung einer erheblichen Cyberbedrohung.
+ */
+export const submissionInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("incident") }).extend(reportInputSchema.shape),
+  z
+    .object({ kind: z.literal("cyber_threat") })
+    .extend(cyberThreatInputSchema.shape),
+]);
+
+export type SubmissionInput = z.infer<typeof submissionInputSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Quittung
+ * ------------------------------------------------------------------------- */
 
 export const reportDeadlineSchema = z.object({
   reportType: z.enum(reportTypeIds),
@@ -533,7 +613,9 @@ export const reportReceiptSchema = z.object({
   /** Vorgangsnummer der (simulierten) Einreichung. */
   submissionId: z.string(),
   submittedAt: z.string(),
-  reportType: z.enum(reportTypeIds),
+  kind: z.enum(["incident", "cyber_threat"]),
+  /** Art der Übermittlung; bei der Cyberbedrohungsmeldung nicht belegt. */
+  reportType: z.enum(reportTypeIds).optional().nullable(),
   /**
    * "simulated": Die Meldung wurde nicht übermittelt. Ein echter Konnektor
    * würde hier den von der Behörde bestätigten Status liefern.
@@ -543,11 +625,11 @@ export const reportReceiptSchema = z.object({
   channel: z.string(),
   /** Fristen, die nach dieser Meldung noch laufen. */
   nextDeadlines: z.array(reportDeadlineSchema),
-  institutionName: z.string(),
+  entityName: z.string(),
   /** Empfängerin der Meldung laut Unternehmensprofil. */
   competentAuthority: optionalText,
-  /** Referenzcode des Vorfalls aus Feld 2.1. */
-  incidentReference: z.string(),
+  /** Referenzcode des Vorfalls (Art. 2 Buchst. a); bei Cyberbedrohungen leer. */
+  incidentReferenceCode: optionalText,
 });
 
 export type ReportReceipt = z.infer<typeof reportReceiptSchema>;

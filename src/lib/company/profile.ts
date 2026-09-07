@@ -18,11 +18,9 @@ import { z } from "zod";
  * Arten von Finanzunternehmen im Anwendungsbereich der DORA
  * (Art. 2 Abs. 1 Buchst. a–t VO (EU) 2022/2554).
  *
- * Die Liste ist abschließend: Feld 1.4 des Meldeformulars (Anhang I der
- * Durchführungsverordnung (EU) 2025/302) lässt nur diese Kategorien zu.
- * Unternehmen, die allein über den national erweiterten Anwendungsbereich
- * (§ 1a Abs. 2a KWG, § 293 Abs. 5 VAG) meldepflichtig sind, kennzeichnet die
- * Meldung stattdessen über Feld 1.4 Buchst. b.
+ * Die Liste ist abschließend: Art. 1 Buchst. b der Delegierten Verordnung
+ * (EU) 2025/301 verlangt die Art des Finanzunternehmens nach genau diesen
+ * Kategorien.
  */
 export const ENTITY_TYPES = [
   { id: "credit_institution", label: "Kreditinstitut" },
@@ -89,22 +87,30 @@ export const companyProfileSchema = z.object({
   homeMemberState: z.string(),
   competentAuthority: z.string(),
 
-  /* Ansprechpartner für die Aufsicht (Felder 1.7–1.12 des Meldeformulars) */
+  /* Für die Kommunikation mit der Behörde verantwortlich (Art. 1 Buchst. e) */
   contactName: z.string(),
   contactRole: z.string(),
   contactEmail: z.string(),
   contactPhone: z.string(),
-  /** Zweite Kontaktperson oder verantwortliches Team (Feld 1.10). */
+  /** Zweite verantwortliche Person oder das zuständige Team. */
   secondContactName: z.string(),
   secondContactEmail: z.string(),
   secondContactPhone: z.string(),
 
-  /* Gruppenzugehörigkeit und Berichtswährung (Felder 1.13–1.15) */
-  /** Oberstes Mutterunternehmen der Gruppe, sofern vorhanden. */
-  ultimateParentName: z.string(),
-  ultimateParentLei: z.string(),
-  /** Berichtswährung nach ISO 4217; in der MVP ist EUR voreingestellt. */
+  /* Gruppe und Berichtswährung (Art. 1 Buchst. f und g des RTS) */
+  /** Mutterunternehmen der Gruppe, der das Finanzunternehmen angehört. */
+  groupParentName: z.string(),
+  groupParentLei: z.string(),
+  /** Währung, in der monetäre Beträge gemeldet werden (ISO 4217). */
   reportingCurrency: z.string(),
+
+  /**
+   * Nach Art. 3 der Richtlinie (EU) 2022/2555 als wesentliche oder wichtige
+   * Einrichtung eingestuft. Für solche Unternehmen greift die Wochenendregel
+   * des Art. 5 Abs. 4 des RTS bei Erst- und Zwischenmeldungen nicht
+   * (Art. 5 Abs. 5).
+   */
+  nis2EssentialEntity: z.boolean(),
 
   /* Referenzwerte für die Klassifizierung (Art. 1, Art. 4 RTS) */
   /** Kunden des Unternehmens insgesamt. */
@@ -152,9 +158,10 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
   secondContactEmail: "ikt-vorfall@musterbank.example",
   secondContactPhone: "+49 69 12345679",
 
-  ultimateParentName: "Musterbank Holding SE",
-  ultimateParentLei: "529900MUSTERHOLDING1",
+  groupParentName: "Musterbank Holding SE",
+  groupParentLei: "529900MUSTERHOLDING1",
   reportingCurrency: "EUR",
+  nis2EssentialEntity: true,
 
   totalClients: "640000",
   dailyTransactionsCount: "1250000",
