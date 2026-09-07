@@ -9,7 +9,6 @@ import {
   Building2,
   Check,
   ClipboardList,
-  Clock,
   Info,
   Loader2,
   Send,
@@ -22,12 +21,18 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { StepRow, type StepStatus } from "@/components/step-row";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  CRITERION_BY_ID,
   DATA_LOSS_DIMENSIONS,
   DORA_CRITERIA,
   REPUTATION_CONDITIONS,
@@ -48,7 +53,6 @@ import {
   type SubmissionKind,
 } from "@/lib/dora/reporting";
 import {
-  CONTENT_ARTICLES,
   DETECTION_SOURCES,
   DURATION_BASES,
   EXTERNAL_ORIGINS,
@@ -77,7 +81,11 @@ import {
   updateSession,
   useSessionValue,
 } from "@/lib/session-store";
-import { ENTITY_TYPES, type CompanyProfile } from "@/lib/company/profile";
+import {
+  ENTITY_TYPES,
+  type CompanyProfile,
+  type EntityType,
+} from "@/lib/company/profile";
 import { useCompanyProfile } from "@/lib/company/store";
 import type {
   CyberThreatInput,
@@ -205,6 +213,12 @@ const emptyForm: ReportForm = {
   notifiedFinancialEntities: "",
 };
 
+/** Die 23 Kategorien des Art. 2 Abs. 1 DORA als Auswahlliste. */
+const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
+  value: t.id,
+  label: t.label,
+}));
+
 const MIN_DESCRIPTION_LENGTH = 10;
 const LEI_PATTERN = /^[A-Z0-9]{20}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
@@ -288,7 +302,6 @@ interface StepDef {
   /** Meldungen, die diesen Schritt verlangen. */
   kinds: SubmissionKind[];
   title: string;
-  hint?: string;
   /** Kurzfassung der Angaben für die eingeklappte Ansicht. */
   summary: (f: ReportForm) => string;
   /**
@@ -356,17 +369,6 @@ function initialDeadlinePassed(form: ReportForm, now: Date = new Date()): boolea
   return now > initialReportDeadline(detectedAt, classifiedAt).dueAt;
 }
 
-/** Dauer und Ausfallzeit in Tagen, Stunden und Minuten. */
-function asDaysHoursMinutes(value: string): string | null {
-  const hours = Number(value);
-  if (value.trim() === "" || !Number.isFinite(hours) || hours < 0) return null;
-  const totalMinutes = Math.round(hours * 60);
-  const days = Math.floor(totalMinutes / (24 * 60));
-  const remainingHours = Math.floor((totalMinutes % (24 * 60)) / 60);
-  const minutes = totalMinutes % 60;
-  return `${days} Tage, ${remainingHours} Stunden, ${minutes} Minuten`;
-}
-
 const BOTH: SubmissionKind[] = ["incident", "cyber_threat"];
 const INCIDENT: SubmissionKind[] = ["incident"];
 const THREAT: SubmissionKind[] = ["cyber_threat"];
@@ -382,7 +384,6 @@ const STEPS: StepDef[] = [
       kind === "incident" ? fieldRef(1, "a") : "Art. 19 Abs. 2 DORA",
     kinds: BOTH,
     title: "Art der Meldung",
-    hint: "Die Meldung eines schwerwiegenden Vorfalls ergeht als Erst-, Zwischen- oder Abschlussmeldung; jede Folgemeldung führt den Referenzcode, den die Behörde nach der Erstmeldung mitgeteilt hat (Art. 3 Buchst. a). Die freiwillige Meldung einer erheblichen Cyberbedrohung hat einen eigenen, kürzeren Inhalt.",
     summary: (f) =>
       join([
         REPORT_TYPE_BY_ID[f.reportType].label,
@@ -399,7 +400,6 @@ const STEPS: StepDef[] = [
     letters: "b–d, f, g",
     kinds: BOTH,
     title: "Meldendes Finanzunternehmen",
-    hint: "Übermittelt ein anderes Unternehmen die Meldung – etwa ein Drittdienstleister oder eine andere Konzerneinheit –, sind dessen Name und Identifikationscode zusätzlich anzugeben. Aus dem Unternehmensprofil vorbelegt und hier änderbar.",
     summary: (f) => join([f.entityName, f.entityLei, f.reportingCurrency]),
     complete: (f) =>
       f.entityName.trim().length > 0 &&
@@ -416,7 +416,6 @@ const STEPS: StepDef[] = [
     letters: "e",
     kinds: BOTH,
     title: "Verantwortliche für die Kommunikation mit der Behörde",
-    hint: "Die Telefonnummer ist mit internationaler Vorwahl anzugeben. Als zweiter Kontakt ist auch ein verantwortliches Team mit funktionaler Adresse zulässig.",
     summary: (f) =>
       join([f.primaryContactName, f.primaryContactEmail, f.secondContactName]),
     complete: (f) =>
@@ -434,7 +433,6 @@ const STEPS: StepDef[] = [
     letters: "a, b",
     kinds: INCIDENT,
     title: "Referenzcode, Erkennung und Einstufung",
-    hint: "Der Referenzcode ist in allen Meldungen zu diesem Vorfall derselbe. Die Erkennung setzt die 24-Stunden-Frist in Gang, die Einstufung die 4-Stunden-Frist (Art. 5 Abs. 1 Buchst. a).",
     summary: (f) =>
       join([
         f.incidentReferenceCode,
@@ -452,7 +450,6 @@ const STEPS: StepDef[] = [
     letters: "c, j",
     kinds: INCIDENT,
     title: "Beschreibung des Vorfalls",
-    hint: "Aus Schritt 02 vorbelegt und hier zu ergänzen.",
     summary: (f) => f.description.trim(),
     complete: (f) => f.description.trim().length >= MIN_DESCRIPTION_LENGTH,
   },
@@ -462,7 +459,6 @@ const STEPS: StepDef[] = [
     letters: "d, e",
     kinds: INCIDENT,
     title: "Einstufungskriterien und betroffene Mitgliedstaaten",
-    hint: "Aus der Einstufung in Schritt 02 übernommen. Die Auswahl muss zu den Angaben passen, mit denen die Kriterien in der Zwischenmeldung belegt werden (Art. 3 Buchst. d).",
     summary: (f) =>
       join([
         labelsOf(DORA_CRITERIA, f.classificationCriteria).join(", "),
@@ -492,7 +488,6 @@ const STEPS: StepDef[] = [
     letters: "i",
     kinds: INCIDENT,
     title: "Neueinstufung als nicht schwerwiegend",
-    hint: "Nur auszufüllen, wenn ein bereits als schwerwiegend gemeldeter Vorfall die Einstufungskriterien nicht mehr erfüllt.",
     summary: (f) =>
       f.reclassifiedAsNonMajor ? "als nicht schwerwiegend neu eingestuft" : "",
     complete: (f) =>
@@ -521,7 +516,6 @@ const STEPS: StepDef[] = [
     letters: "d",
     kinds: INCIDENT,
     title: "Betroffene Kunden, Gegenparteien, Transaktionen und Reputation",
-    hint: "Erfasst wird, wer den betroffenen Dienst nicht oder nur eingeschränkt nutzen konnte – nicht die Gesamtheit aller Kunden. Solange die tatsächlichen Werte nicht feststehen, sind Schätzungen auf Basis vergleichbarer Zeiträume zulässig.",
     summary: (f) =>
       join([
         f.clientsAffected && `${num(f.clientsAffected)} Kunden`,
@@ -542,7 +536,6 @@ const STEPS: StepDef[] = [
     letters: "d",
     kinds: INCIDENT,
     title: "Dauer, Ausfallzeit und Auswirkungen in den Mitgliedstaaten",
-    hint: "Die Dauer misst den Zeitraum vom Eintreten bis zur Behebung. Die Ausfallzeit meint dagegen den Zeitraum, in dem der Dienst nicht oder nur eingeschränkt verfügbar war – einschließlich verzögert erbrachter Leistungen.",
     summary: (f) =>
       join([
         f.durationHours && `Dauer ${num(f.durationHours)} h`,
@@ -584,7 +577,6 @@ const STEPS: StepDef[] = [
     letters: "g–i",
     kinds: INCIDENT,
     title: "Funktionsbereiche, Infrastruktur und Kundeninteressen",
-    hint: "Funktionsbereiche, Geschäftsprozesse und Infrastrukturkomponenten sind in Klarschrift zu benennen.",
     summary: (f) =>
       join([
         labelsOf(FUNCTIONAL_AREAS, f.functionalAreas).join(", "),
@@ -621,7 +613,6 @@ const STEPS: StepDef[] = [
     letters: "a",
     kinds: INCIDENT,
     title: "Ursachen des Vorfalls",
-    hint: "Zur Einstufung der Ursachen gehört die Abfolge der Ereignisse, die zum Vorfall geführt haben; bei böswilligen Handlungen zusätzlich Taktiken, Techniken, Verfahren und Eintrittsvektor.",
     summary: (f) =>
       labelsOf(ROOT_CAUSE_CATEGORIES, f.rootCauseCategories).join(", "),
     complete: (f) =>
@@ -635,7 +626,6 @@ const STEPS: StepDef[] = [
     letters: "b, c",
     kinds: INCIDENT,
     title: "Behebung des Vorfalls",
-    hint: "Anzugeben sind die dauerhaften Maßnahmen – nicht die befristeten aus Art. 3 Buchst. k –, die Beteiligung von Drittdienstleistern, angepasste Verfahren und zusätzliche Kontrollen sowie die Erkenntnisse aus der Nachbetrachtung.",
     summary: (f) =>
       join([
         f.incidentResolvedAt &&
@@ -653,7 +643,6 @@ const STEPS: StepDef[] = [
     letters: "d",
     kinds: INCIDENT,
     title: "Für die Abwicklungsbehörden relevante Informationen",
-    hint: "Betrifft Unternehmen im Anwendungsbereich der Richtlinie 2014/59/EU: Gefährdet der Vorfall kritische Funktionen, und wie wirkt er sich auf die Abwicklungsfähigkeit, auf Solvenz und Liquidität aus?",
     summary: (f) =>
       labelOf(RESOLUTION_RISK_ANSWERS, f.resolutionRisk)
         ? `Risiko für kritische Funktionen: ${labelOf(
@@ -669,7 +658,6 @@ const STEPS: StepDef[] = [
     letters: "e",
     kinds: INCIDENT,
     title: "Kosten, Verluste und finanzielle Wiedereinziehungen",
-    hint: "Brutto und ohne Verrechnung der Wiedereinziehungen; einzubeziehen sind auch die Personalkosten der Vorfallbearbeitung. Die Wiedereinziehungen werden gesondert ausgewiesen.",
     summary: (f) =>
       f.grossCostsAndLosses
         ? `${num(f.grossCostsAndLosses)} ${f.reportingCurrency}`
@@ -682,7 +670,6 @@ const STEPS: StepDef[] = [
     letters: "f",
     kinds: INCIDENT,
     title: "Wiederholte Vorfälle",
-    hint: "Nur auszufüllen, wenn sich nicht schwerwiegende Vorfälle wiederholt haben und zusammen als schwerwiegender Vorfall gelten (Art. 8 Abs. 2 DelVO (EU) 2024/1772).",
     summary: (f) =>
       f.recurringIncidents
         ? join([
@@ -720,7 +707,6 @@ const STEPS: StepDef[] = [
     letters: "d",
     kinds: THREAT,
     title: "Mögliche Auswirkungen",
-    hint: "Auf das Finanzunternehmen selbst, auf seine Kunden und auf Gegenparteien im Finanzbereich.",
     summary: (f) => f.potentialImpact.trim(),
     complete: (f) => f.potentialImpact.trim().length >= MIN_DESCRIPTION_LENGTH,
   },
@@ -730,7 +716,6 @@ const STEPS: StepDef[] = [
     letters: "e",
     kinds: THREAT,
     title: "Kriterien, die eine Meldepflicht ausgelöst hätten",
-    hint: "Welche Einstufungskriterien hätten zur Meldung eines schwerwiegenden Vorfalls geführt, wäre die Cyberbedrohung eingetreten?",
     summary: (f) =>
       labelsOf(DORA_CRITERIA, f.classificationCriteria).join(", "),
     complete: (f) => f.classificationCriteria.length > 0,
@@ -1117,7 +1102,6 @@ export default function ReportPage() {
                 <button
                   key={k.id}
                   type="button"
-                  title={k.description}
                   onClick={() => patch((d) => ({ ...d, kind: k.id }))}
                   className={cn(
                     "rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors",
@@ -1145,7 +1129,6 @@ export default function ReportPage() {
                       <button
                         key={t.id}
                         type="button"
-                        title={t.description}
                         onClick={() => update("reportType", t.id)}
                         className={cn(
                           "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
@@ -1159,22 +1142,11 @@ export default function ReportPage() {
                     ))}
                   </div>
                 </div>
-                <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Frist: </span>
-                  {REPORT_TYPE_BY_ID[form.reportType].deadline} (
-                  {REPORT_TYPE_BY_ID[form.reportType].article}). Diese Meldung
-                  umfasst die Angaben nach{" "}
-                  {REPORT_TYPE_BY_ID[form.reportType].articles
-                    .map((a) => `Art. ${a} (${CONTENT_ARTICLES[a].title})`)
-                    .join(", ")}
-                  .
-                </p>
                 {isFollowUp(form.reportType) && (
                   <Field
                     source={fieldRef(3, "a")}
                     label="Von der zuständigen Behörde mitgeteilter Referenzcode"
                     htmlFor="authorityReferenceCode"
-                    hint="Nicht der eigene Referenzcode aus Art. 2 Buchst. a, sondern der Code, den die Behörde nach Eingang der Erstmeldung vergeben hat."
                   >
                     <Input
                       id="authorityReferenceCode"
@@ -1238,23 +1210,27 @@ export default function ReportPage() {
               )}
 
             <div className="space-y-2">
-              <Label>
+              <Label htmlFor="entityType">
                 <Source value={fieldRef(1, "b")} /> Art des Finanzunternehmens
               </Label>
-              <div className="flex flex-wrap gap-2">
-                {ENTITY_TYPES.map((type) => (
-                  <TogglePill
-                    key={type.id}
-                    active={form.entityType === type.id}
-                    onClick={() => update("entityType", type.id)}
-                  >
-                    {type.label}
-                  </TogglePill>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Kategorie nach Art. 2 Abs. 1 DORA.
-              </p>
+              <Select
+                items={ENTITY_TYPE_ITEMS}
+                value={form.entityType}
+                onValueChange={(value) =>
+                  update("entityType", value as EntityType)
+                }
+              >
+                <SelectTrigger id="entityType" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENTITY_TYPES.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1262,7 +1238,6 @@ export default function ReportPage() {
                 source={fieldRef(1, "c")}
                 label="Name des übermittelnden Unternehmens"
                 htmlFor="submittingEntityName"
-                hint="Nur auszufüllen, wenn das Finanzunternehmen die Meldung nicht selbst übermittelt."
               >
                 <Input
                   id="submittingEntityName"
@@ -1293,7 +1268,6 @@ export default function ReportPage() {
                 source={fieldRef(1, "d")}
                 label="Weitere Finanzunternehmen einer aggregierten Meldung"
                 htmlFor="aggregatedEntityNames"
-                hint="Namen durch Semikolon getrennt."
               >
                 <Input
                   id="aggregatedEntityNames"
@@ -1307,7 +1281,6 @@ export default function ReportPage() {
                 source={fieldRef(1, "d")}
                 label="Deren LEI-Codes"
                 htmlFor="aggregatedEntityLeis"
-                hint="In derselben Reihenfolge wie die Namen."
               >
                 <Input
                   id="aggregatedEntityLeis"
@@ -1349,7 +1322,6 @@ export default function ReportPage() {
                 source={fieldRef(1, "g")}
                 label="Währung monetärer Beträge"
                 htmlFor="reportingCurrency"
-                hint="ISO-4217-Code, z. B. EUR."
               >
                 <Input
                   id="reportingCurrency"
@@ -1398,7 +1370,6 @@ export default function ReportPage() {
                 source={fieldRef(1, "e")}
                 label="Telefonnummer"
                 htmlFor="primaryContactPhone"
-                hint="Mit internationaler Vorwahl."
               >
                 <Input
                   id="primaryContactPhone"
@@ -1464,11 +1435,6 @@ export default function ReportPage() {
                   }
                 />
               )}
-            {profile?.contactRole && (
-              <p className="text-xs text-muted-foreground">
-                Funktion laut Unternehmensprofil: {profile.contactRole}.
-              </p>
-            )}
           </>
         );
 
@@ -1480,7 +1446,6 @@ export default function ReportPage() {
                 source={fieldRef(2, "a")}
                 label="Referenzcode des Vorfalls"
                 htmlFor="incidentReferenceCode"
-                hint="Vom Finanzunternehmen vergeben, in allen Meldungen gleich."
               >
                 <Input
                   id="incidentReferenceCode"
@@ -1522,7 +1487,6 @@ export default function ReportPage() {
                 source="Art. 5 Abs. 3"
                 label="Gründe für die verspätete Übermittlung"
                 htmlFor="delayReason"
-                hint="Wer eine Frist nicht einhalten kann, teilt dies der zuständigen Behörde unverzüglich mit und gibt die Gründe an."
               >
                 <Textarea
                   id="delayReason"
@@ -1554,7 +1518,6 @@ export default function ReportPage() {
               source={fieldRef(2, "j")}
               label="Sonstige zweckdienliche Informationen"
               htmlFor="additionalInformation"
-              hint="Soweit verfügbar – alles, was kein anderes Feld aufnimmt."
             >
               <Textarea
                 id="additionalInformation"
@@ -1581,24 +1544,12 @@ export default function ReportPage() {
                   <TogglePill
                     key={c.id}
                     active={form.classificationCriteria.includes(c.id)}
-                    title={c.description}
                     onClick={() => toggle("classificationCriteria", c.id)}
                   >
                     {c.label}
                   </TogglePill>
                 ))}
               </div>
-              {result && (
-                <p className="text-xs text-muted-foreground">
-                  Vorbelegt aus Schritt 02:{" "}
-                  {result.findings.filter((f) => f.thresholdMet).length === 0
-                    ? "kein Kriterium mit erreichter Schwelle."
-                    : result.findings
-                        .filter((f) => f.thresholdMet)
-                        .map((f) => CRITERION_BY_ID[f.criterionId].label)
-                        .join(", ") + "."}
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label>
@@ -1618,10 +1569,6 @@ export default function ReportPage() {
                   </TogglePill>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Ab zwei Mitgliedstaaten ist auch das Kriterium „Geografische
-                Ausbreitung“ zu wählen (Art. 9 Abs. 4 DelVO (EU) 2024/1772).
-              </p>
             </div>
           </>
         );
@@ -1655,16 +1602,12 @@ export default function ReportPage() {
                   <TogglePill
                     key={o.id}
                     active={form.incidentOrigin === o.id}
-                    title={"hint" in o ? o.hint : undefined}
                     onClick={() => update("incidentOrigin", o.id)}
                   >
                     {o.label}
                   </TogglePill>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Soweit verfügbar.
-              </p>
             </div>
             {form.incidentOrigin !== null &&
               EXTERNAL_ORIGINS.includes(form.incidentOrigin) && (
@@ -1672,7 +1615,6 @@ export default function ReportPage() {
                   source={fieldRef(2, "g")}
                   label="Bezeichnung des Dritten"
                   htmlFor="originEntityDetails"
-                  hint="Name, Identifikationscode und Art des Codes, z. B. LEI oder EUID."
                 >
                   <Textarea
                     id="originEntityDetails"
@@ -1707,7 +1649,6 @@ export default function ReportPage() {
                 source={fieldRef(2, "i")}
                 label="Gründe der Neueinstufung"
                 htmlFor="reclassificationDetails"
-                hint="Aus welchen Gründen erfüllt der Vorfall die Einstufungskriterien nicht und wird sie voraussichtlich nicht erfüllen?"
               >
                 <Textarea
                   id="reclassificationDetails"
@@ -1729,7 +1670,6 @@ export default function ReportPage() {
               source={fieldRef(3, "b")}
               label="Eintreten des Vorfalls"
               htmlFor="occurredAt"
-              hint="Anzugeben, soweit vom Zeitpunkt der Erkennung abweichend."
             >
               <Input
                 id="occurredAt"
@@ -1742,7 +1682,6 @@ export default function ReportPage() {
               source={fieldRef(3, "c")}
               label="Wiederaufnahme des regulären Geschäftsbetriebs"
               htmlFor="regularOperationsResumedAt"
-              hint="Mit ihr ist die aktualisierte Zwischenmeldung fällig (Art. 5 Abs. 1 Buchst. b)."
             >
               <Input
                 id="regularOperationsResumedAt"
@@ -1869,7 +1808,6 @@ export default function ReportPage() {
               source={fieldRef(3, "d")}
               label="Auswirkungen auf relevante Kunden oder Gegenparteien"
               htmlFor="relevantClientsImpact"
-              hint="Kunden oder Gegenparteien, deren Beeinträchtigung die Geschäftsziele oder die Markteffizienz berührt (Art. 1 Abs. 3 DelVO (EU) 2024/1772)."
             >
               <Textarea
                 id="relevantClientsImpact"
@@ -1904,7 +1842,6 @@ export default function ReportPage() {
                   <TogglePill
                     key={c.id}
                     active={form.reputationalImpactConditions.includes(c.id)}
-                    title={c.hint}
                     onClick={() => toggle("reputationalImpactConditions", c.id)}
                   >
                     {c.label}
@@ -1916,7 +1853,6 @@ export default function ReportPage() {
               source={fieldRef(3, "d")}
               label="Erläuterung des Reputationsschadens"
               htmlFor="reputationalImpactContext"
-              hint="Art und Reichweite der Medien, Kundenbeschwerden, nicht erfüllte regulatorische Anforderungen."
             >
               <Textarea
                 id="reputationalImpactContext"
@@ -1938,10 +1874,6 @@ export default function ReportPage() {
                 source={fieldRef(3, "d")}
                 label="Dauer des Vorfalls (Stunden)"
                 htmlFor="durationHours"
-                hint={
-                  asDaysHoursMinutes(form.durationHours) ??
-                  "Vom Eintreten bis zur Behebung des Vorfalls."
-                }
               >
                 <Input
                   id="durationHours"
@@ -1955,10 +1887,6 @@ export default function ReportPage() {
                 source={fieldRef(3, "d")}
                 label="Ausfallzeit des Dienstes (Stunden)"
                 htmlFor="downtimeHours"
-                hint={
-                  asDaysHoursMinutes(form.downtimeHours) ??
-                  "Einschließlich verzögert erbrachter Leistungen."
-                }
               >
                 <Input
                   id="downtimeHours"
@@ -2038,7 +1966,6 @@ export default function ReportPage() {
                   <TogglePill
                     key={d.id}
                     active={form.dataLossDimensions.includes(d.id)}
-                    title={d.hint}
                     onClick={() => toggle("dataLossDimensions", d.id)}
                   >
                     {d.label}
@@ -2050,7 +1977,6 @@ export default function ReportPage() {
               source={fieldRef(3, "d")}
               label="Beschreibung der Datenverluste"
               htmlFor="dataLossDescription"
-              hint="Welche Daten sind betroffen – Kundendaten, Daten anderer Unternehmen oder eigene –, und welche Folgen hat die Beeinträchtigung für Geschäftsziele oder regulatorische Anforderungen?"
             >
               <Textarea
                 id="dataLossDescription"
@@ -2063,7 +1989,6 @@ export default function ReportPage() {
               source={fieldRef(3, "d")}
               label="Betroffene kritische Dienste"
               htmlFor="criticalServicesDescription"
-              hint="Zulassungspflichtige oder beaufsichtigte Dienstleistungen, IKT-Dienste kritischer oder wichtiger Funktionen sowie die Art eines etwaigen böswilligen unbefugten Zugriffs (Art. 6 DelVO (EU) 2024/1772)."
             >
               <Textarea
                 id="criticalServicesDescription"
@@ -2168,7 +2093,6 @@ export default function ReportPage() {
               source={fieldRef(3, "g")}
               label="Betroffene Geschäftsprozesse"
               htmlFor="affectedProcesses"
-              hint="In Klarschrift, z. B. Kartenzahlungen, Überweisungen, Kunden-Onboarding, Clearing, Portfolioverwaltung."
             >
               <Textarea
                 id="affectedProcesses"
@@ -2199,7 +2123,6 @@ export default function ReportPage() {
                 source={fieldRef(3, "h")}
                 label="Beschreibung der betroffenen Infrastrukturkomponenten"
                 htmlFor="infrastructureDescription"
-                hint="Hardware und Software mit Versionsangaben, interne oder ausgelagerte Infrastruktur samt Drittdienstleister, gemeinsame Nutzung durch mehrere Geschäftsfunktionen und getroffene Resilienzvorkehrungen."
               >
                 <Textarea
                   id="infrastructureDescription"
@@ -2239,7 +2162,6 @@ export default function ReportPage() {
               source={fieldRef(3, "k")}
               label="Beschreibung der befristeten Maßnahmen"
               htmlFor="temporaryMeasuresDescription"
-              hint="Etwa Isolierung auf Netzwerkebene, Workaround-Verfahren oder Aktivierung des Ausweichstandorts – mit Zeitpunkt der Umsetzung. Wurden keine Maßnahmen ergriffen, ist der Grund anzugeben."
             >
               <Textarea
                 id="temporaryMeasuresDescription"
@@ -2254,7 +2176,6 @@ export default function ReportPage() {
               source={fieldRef(3, "l")}
               label="Kompromittierungsindikatoren"
               htmlFor="indicatorsOfCompromise"
-              hint="Gegebenenfalls: IP- und URL-Adressen, Domains, Datei-Hashes, Angaben zu Schadsoftware, Netz- und E-Mail-Aktivitäten, DNS-Anfragen, Nutzerkontoaktivitäten."
             >
               <Textarea
                 id="indicatorsOfCompromise"
@@ -2372,7 +2293,6 @@ export default function ReportPage() {
               source={fieldRef(4, "a")}
               label="Angaben zu den Ursachen des Vorfalls"
               htmlFor="rootCauseDescription"
-              hint="Abfolge der Ereignisse und die Hauptfaktoren, die zum Vorfall beigetragen haben; bei böswilligen Handlungen zusätzlich Taktiken, Techniken, Verfahren und Eintrittsvektor sowie die Untersuchungen, die zur Ursache geführt haben."
             >
               <Textarea
                 id="rootCauseDescription"
@@ -2419,7 +2339,6 @@ export default function ReportPage() {
               source={fieldRef(4, "c")}
               label="Angaben dazu, wie dem Vorfall entgegengewirkt wurde"
               htmlFor="counterMeasures"
-              hint="Dauerhafte Maßnahmen, die Beteiligung von Drittdienstleistern, angepasste Verfahren, zusätzliche Kontrollen samt Zeitplan – und die Erkenntnisse aus der Nachbetrachtung."
             >
               <Textarea
                 id="counterMeasures"
@@ -2450,16 +2369,11 @@ export default function ReportPage() {
                   </TogglePill>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Kritische Funktionen im Sinne des Art. 2 Abs. 1 Nr. 35 der
-                Richtlinie 2014/59/EU.
-              </p>
             </div>
             <Field
               source={fieldRef(4, "d")}
               label="Für die Abwicklungsbehörden relevante Informationen"
               htmlFor="resolutionAuthorityInformation"
-              hint="Auswirkungen auf die Abwicklungsfähigkeit, auf Solvenz und Liquidität samt möglicher Quantifizierung, auf die Aufrechterhaltung des Geschäftsbetriebs und auf die Kapitalposition; außerdem, ob die Verträge über IKT-Dienste im Abwicklungsfall durchsetzbar bleiben."
             >
               <Textarea
                 id="resolutionAuthorityInformation"
@@ -2481,7 +2395,6 @@ export default function ReportPage() {
                 source={fieldRef(4, "e")}
                 label={`Direkte und indirekte Kosten und Verluste (${form.reportingCurrency})`}
                 htmlFor="grossCostsAndLosses"
-                hint="Brutto: enteignete Mittel, Ersatz von Software, Hardware und Infrastruktur, Personalkosten, Vertragsstrafen, Entschädigungen, entgangene Einnahmen, Kommunikations- und Beratungskosten."
               >
                 <Input
                   id="grossCostsAndLosses"
@@ -2495,7 +2408,6 @@ export default function ReportPage() {
                 source={fieldRef(4, "e")}
                 label={`Finanzielle Wiedereinziehungen (${form.reportingCurrency})`}
                 htmlFor="financialRecoveries"
-                hint="Bezogen auf den ursprünglichen Verlust, unabhängig vom Zeitpunkt der Vereinnahmung."
               >
                 <Input
                   id="financialRecoveries"
@@ -2510,7 +2422,6 @@ export default function ReportPage() {
               source={fieldRef(4, "e")}
               label="Erläuterung der Kosten und Verluste"
               htmlFor="economicImpactDescription"
-              hint="Wodurch sind sie entstanden?"
             >
               <Textarea
                 id="economicImpactDescription"
@@ -2590,7 +2501,6 @@ export default function ReportPage() {
               source={fieldRef(6, "b")}
               label="Sonstige relevante Zeitstempel"
               htmlFor="relevantTimestamps"
-              hint="Etwa der Beginn der beobachteten Aktivität oder der Zeitpunkt der Eindämmung."
             >
               <Textarea
                 id="relevantTimestamps"
@@ -2621,7 +2531,6 @@ export default function ReportPage() {
               source={fieldRef(6, "j")}
               label="Sonstige zweckdienliche Informationen"
               htmlFor="additionalInformation"
-              hint="Soweit verfügbar."
             >
               <Textarea
                 id="additionalInformation"
@@ -2641,7 +2550,6 @@ export default function ReportPage() {
             source={fieldRef(6, "d")}
             label="Mögliche Auswirkungen der Cyberbedrohung"
             htmlFor="potentialImpact"
-            hint="Auf das Finanzunternehmen, seine Kunden und die Gegenparteien im Finanzbereich."
           >
             <Textarea
               id="potentialImpact"
@@ -2664,17 +2572,12 @@ export default function ReportPage() {
                 <TogglePill
                   key={c.id}
                   active={form.classificationCriteria.includes(c.id)}
-                  title={c.description}
                   onClick={() => toggle("classificationCriteria", c.id)}
                 >
                   {c.label}
                 </TogglePill>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Zu bewerten unter der Annahme, dass die Cyberbedrohung eingetreten
-              wäre.
-            </p>
           </div>
         );
 
@@ -2718,7 +2621,6 @@ export default function ReportPage() {
               source={fieldRef(6, "g")}
               label="Maßnahmen zur Verhinderung des Eintretens"
               htmlFor="preventiveMeasures"
-              hint="Gegebenenfalls: was das Finanzunternehmen ergriffen hat, damit die Cyberbedrohung sich nicht verwirklicht."
             >
               <Textarea
                 id="preventiveMeasures"
@@ -2762,7 +2664,6 @@ export default function ReportPage() {
             source={fieldRef(6, "i")}
             label="Kompromittierungsindikatoren"
             htmlFor="indicatorsOfCompromise"
-            hint="Gegebenenfalls: IP- und URL-Adressen, Domains, Datei-Hashes, Angaben zu Schadsoftware, Netz- und E-Mail-Aktivitäten."
           >
             <Textarea
               id="indicatorsOfCompromise"
@@ -2817,7 +2718,7 @@ export default function ReportPage() {
       <PageHeader
         step="Schritt 03"
         title="Meldung an die BaFin"
-        desc="Der Inhalt folgt der Delegierten Verordnung (EU) 2025/301 – den technischen Regulierungsstandards zu Inhalt und Fristen der Meldungen nach Art. 19 DORA. An jeder Angabe steht, welcher Artikel sie verlangt."
+        desc="Inhalt nach der Delegierten Verordnung (EU) 2025/301."
       />
 
       {/* Besteht überhaupt eine Meldepflicht? */}
@@ -2834,9 +2735,6 @@ export default function ReportPage() {
           </span>
           <div className="space-y-1">
             <h2 className="font-semibold">{obligation.label}</h2>
-            <p className="text-sm text-muted-foreground">
-              {obligation.explanation}
-            </p>
           </div>
         </div>
       </div>
@@ -2866,11 +2764,6 @@ export default function ReportPage() {
                 isLast={isLast}
                 onToggle={() => toggleStep(step.id)}
               >
-                {step.hint && (
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {step.hint}
-                  </p>
-                )}
                 {stepFields(step.id)}
                 <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
                   <Button
@@ -2907,13 +2800,6 @@ export default function ReportPage() {
                 style={{ width: `${(addressed / activeSteps.length) * 100}%` }}
               />
             </div>
-            {kind === "incident" && (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Clock className="size-3.5" />
-                {REPORT_TYPE_BY_ID[form.reportType].label}:{" "}
-                {REPORT_TYPE_BY_ID[form.reportType].deadline}.
-              </p>
-            )}
           </div>
 
           {checks.length > 0 && <CheckList checks={checks} />}
@@ -2941,10 +2827,7 @@ export default function ReportPage() {
           </div>
           {blocked && (
             <p className="text-right text-xs text-muted-foreground">
-              Ohne Meldepflicht ist die Vorfallmeldung nur als Neueinstufung
-              eines bereits gemeldeten Vorfalls möglich (Art. 2 Buchst. i).
-              Andernfalls wählen Sie die freiwillige Meldung einer erheblichen
-              Cyberbedrohung.
+              Ohne Meldepflicht nur als Neueinstufung (Art. 2 Buchst. i).
             </p>
           )}
         </div>
@@ -2968,13 +2851,11 @@ function Field({
   source,
   label,
   htmlFor,
-  hint,
   children,
 }: {
   source: string;
   label: string;
   htmlFor: string;
-  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -2983,7 +2864,6 @@ function Field({
         <Source value={source} /> {label}
       </Label>
       {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -3008,11 +2888,7 @@ function DeadlineNote({ form }: { form: ReportForm }) {
       <span className="font-medium text-foreground">
         Fällig bis {formatDateTime(deadline.dueAt)}
       </span>{" "}
-      – {deadline.basis}. Fällt die Frist auf ein Wochenende oder einen
-      Feiertag, kann sie sich bis 12.00 Uhr des folgenden Arbeitstages
-      verlängern (Art. 5 Abs. 4); für Kreditinstitute, zentrale Gegenparteien,
-      Betreiber von Handelsplätzen und nach der NIS-2-Richtlinie als wesentlich
-      oder wichtig eingestufte Unternehmen gilt das nicht (Abs. 5).
+      – {deadline.basis}
     </p>
   );
 }
@@ -3040,7 +2916,6 @@ function AuthoritiesPicker({
             <TogglePill
               key={a.id}
               active={form.notifiedAuthorities.includes(a.id)}
-              title={"hint" in a ? a.hint : undefined}
               onClick={() => onToggle(a.id)}
             >
               {a.label}
@@ -3068,18 +2943,15 @@ function AuthoritiesPicker({
 function TogglePill({
   active,
   onClick,
-  title,
   children,
 }: {
   active: boolean;
   onClick: () => void;
-  title?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
-      title={title}
       aria-pressed={active}
       onClick={onClick}
       className={cn(
@@ -3097,13 +2969,11 @@ function TogglePill({
 function YesNo({
   source,
   question,
-  hint,
   value,
   onChange,
 }: {
   source: string;
   question: string;
-  hint?: string;
   value: boolean;
   onChange: (value: boolean) => void;
 }) {
@@ -3120,7 +2990,6 @@ function YesNo({
           Nein
         </ChoiceButton>
       </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
