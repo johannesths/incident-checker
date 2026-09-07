@@ -136,13 +136,13 @@ export type CompanyProfile = z.infer<typeof companyProfileSchema>;
  * Top-Level-Domain .example.
  */
 export const DEMO_COMPANY_PROFILE: CompanyProfile = {
-  name: "Musterbank AG",
+  name: "Konstantinus Bank AG",
   legalForm: "Aktiengesellschaft",
   entityType: "credit_institution",
-  lei: "529900MUSTERBANK0001",
+  lei: "529900KONSTANTINUSBK0001",
   bafinId: "10123456",
 
-  street: "Musterallee 1",
+  street: "Berthold-Allee 12/13",
   postalCode: "60311",
   city: "Frankfurt am Main",
   country: "Deutschland",
@@ -150,16 +150,16 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
   competentAuthority:
     "Bundesanstalt für Finanzdienstleistungsaufsicht (BaFin)",
 
-  contactName: "Jana Musterfrau",
+  contactName: "Jana Ikate",
   contactRole: "Leiterin IKT-Risikomanagement",
-  contactEmail: "ikt-meldewesen@musterbank.example",
+  contactEmail: "ikt@konstantinus.example",
   contactPhone: "+49 69 12345678",
   secondContactName: "IKT-Vorfallmanagement (Team)",
-  secondContactEmail: "ikt-vorfall@musterbank.example",
+  secondContactEmail: "ikt-vorfalll@konstantinus.example",
   secondContactPhone: "+49 69 12345679",
 
-  groupParentName: "Musterbank Holding SE",
-  groupParentLei: "529900MUSTERHOLDING1",
+  groupParentName: "Konstantinus Holding SE",
+  groupParentLei: "529900KONSTHOLDING1",
   reportingCurrency: "EUR",
   nis2EssentialEntity: true,
 
