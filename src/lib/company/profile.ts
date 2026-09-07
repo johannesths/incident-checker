@@ -16,19 +16,38 @@ import { z } from "zod";
 
 /**
  * Arten von Finanzunternehmen im Anwendungsbereich der DORA
- * (Art. 2 Abs. 1 VO (EU) 2022/2554, gekürzt auf die geläufigen Kategorien).
+ * (Art. 2 Abs. 1 Buchst. a–t VO (EU) 2022/2554).
+ *
+ * Die Liste ist abschließend: Feld 1.4 des Meldeformulars (Anhang I der
+ * Durchführungsverordnung (EU) 2025/302) lässt nur diese Kategorien zu.
+ * Unternehmen, die allein über den national erweiterten Anwendungsbereich
+ * (§ 1a Abs. 2a KWG, § 293 Abs. 5 VAG) meldepflichtig sind, kennzeichnet die
+ * Meldung stattdessen über Feld 1.4 Buchst. b.
  */
 export const ENTITY_TYPES = [
   { id: "credit_institution", label: "Kreditinstitut" },
   { id: "payment_institution", label: "Zahlungsinstitut" },
+  { id: "exempted_payment_institution", label: "Ausgenommenes Zahlungsinstitut" },
+  { id: "account_information_provider", label: "Kontoinformationsdienstleister" },
   { id: "emoney_institution", label: "E-Geld-Institut" },
+  { id: "exempted_emoney_institution", label: "Ausgenommenes E-Geld-Institut" },
   { id: "investment_firm", label: "Wertpapierfirma" },
-  { id: "asset_manager", label: "Kapitalverwaltungsgesellschaft" },
-  { id: "insurance", label: "Versicherungsunternehmen" },
+  { id: "crypto_provider", label: "Anbieter von Kryptowerte-Dienstleistungen" },
+  { id: "art_issuer", label: "Emittent wertereferenzierter Token" },
   { id: "csd", label: "Zentralverwahrer" },
+  { id: "ccp", label: "Zentrale Gegenpartei" },
   { id: "trading_venue", label: "Handelsplatz" },
-  { id: "crypto_provider", label: "Kryptowerte-Dienstleister" },
-  { id: "other", label: "Sonstiges Finanzunternehmen" },
+  { id: "trade_repository", label: "Transaktionsregister" },
+  { id: "aifm", label: "Verwalter alternativer Investmentfonds" },
+  { id: "asset_manager", label: "Verwaltungsgesellschaft" },
+  { id: "data_reporting_provider", label: "Datenbereitstellungsdienst" },
+  { id: "insurance", label: "Versicherungs- und Rückversicherungsunternehmen" },
+  { id: "insurance_intermediary", label: "Versicherungs- und Rückversicherungsvermittler" },
+  { id: "pension_institution", label: "Einrichtung der betrieblichen Altersversorgung" },
+  { id: "rating_agency", label: "Ratingagentur" },
+  { id: "benchmark_administrator", label: "Administrator kritischer Referenzwerte" },
+  { id: "crowdfunding_provider", label: "Schwarmfinanzierungsdienstleister" },
+  { id: "securitisation_repository", label: "Verbriefungsregister" },
 ] as const;
 
 export type EntityType = (typeof ENTITY_TYPES)[number]["id"];
@@ -70,11 +89,22 @@ export const companyProfileSchema = z.object({
   homeMemberState: z.string(),
   competentAuthority: z.string(),
 
-  /* Ansprechpartner für die Aufsicht */
+  /* Ansprechpartner für die Aufsicht (Felder 1.7–1.12 des Meldeformulars) */
   contactName: z.string(),
   contactRole: z.string(),
   contactEmail: z.string(),
   contactPhone: z.string(),
+  /** Zweite Kontaktperson oder verantwortliches Team (Feld 1.10). */
+  secondContactName: z.string(),
+  secondContactEmail: z.string(),
+  secondContactPhone: z.string(),
+
+  /* Gruppenzugehörigkeit und Berichtswährung (Felder 1.13–1.15) */
+  /** Oberstes Mutterunternehmen der Gruppe, sofern vorhanden. */
+  ultimateParentName: z.string(),
+  ultimateParentLei: z.string(),
+  /** Berichtswährung nach ISO 4217; in der MVP ist EUR voreingestellt. */
+  reportingCurrency: z.string(),
 
   /* Referenzwerte für die Klassifizierung (Art. 1, Art. 4 RTS) */
   /** Kunden des Unternehmens insgesamt. */
@@ -117,7 +147,14 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
   contactName: "Jana Musterfrau",
   contactRole: "Leiterin IKT-Risikomanagement",
   contactEmail: "ikt-meldewesen@musterbank.example",
-  contactPhone: "+49 69 1234-5678",
+  contactPhone: "+49 69 12345678",
+  secondContactName: "IKT-Vorfallmanagement (Team)",
+  secondContactEmail: "ikt-vorfall@musterbank.example",
+  secondContactPhone: "+49 69 12345679",
+
+  ultimateParentName: "Musterbank Holding SE",
+  ultimateParentLei: "529900MUSTERHOLDING1",
+  reportingCurrency: "EUR",
 
   totalClients: "640000",
   dailyTransactionsCount: "1250000",
@@ -134,10 +171,17 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
  */
 export function normalizeProfile(stored: unknown): CompanyProfile {
   if (!stored || typeof stored !== "object") return DEMO_COMPANY_PROFILE;
-  const parsed = companyProfileSchema.safeParse({
+  const merged = {
     ...DEMO_COMPANY_PROFILE,
     ...(stored as Partial<CompanyProfile>),
-  });
+  };
+  // Die Liste der Unternehmensarten folgt dem Meldeformular und kann sich
+  // ändern. Eine nicht mehr gültige Auswahl verwirft nur dieses Feld – nicht
+  // das gesamte gepflegte Profil.
+  if (!ENTITY_TYPES.some((t) => t.id === merged.entityType)) {
+    merged.entityType = DEMO_COMPANY_PROFILE.entityType;
+  }
+  const parsed = companyProfileSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEMO_COMPANY_PROFILE;
 }
 

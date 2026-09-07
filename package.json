@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:severity": "node scripts/test-severity.mjs"
+    "test:severity": "node scripts/test-severity.mjs",
+    "test:report": "node scripts/test-report.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

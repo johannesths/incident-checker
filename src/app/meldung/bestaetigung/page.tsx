@@ -66,7 +66,7 @@ export default function ReportConfirmationPage() {
       <PageHeader
         step="Schritt 03 · Bestätigung"
         title="Meldung erfasst"
-        desc="Quittung der Übermittlung an die zuständige Behörde."
+        desc="Quittung der Übermittlung an die zuständige Behörde. Folgemeldungen zu diesem Vorfall führen denselben Referenzcode (Feld 2.1) und die Vorgangsnummer der Behörde (Feld 3.1)."
       />
 
       <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
@@ -85,7 +85,7 @@ export default function ReportConfirmationPage() {
           </div>
 
           <dl className="grid gap-4 sm:grid-cols-2">
-            <Detail label="Vorgangsnummer">
+            <Detail label="Vorgangsnummer der Behörde (3.1)">
               <span className="font-mono">{receipt.submissionId}</span>
             </Detail>
             <Detail label="Zeitpunkt">
@@ -97,8 +97,8 @@ export default function ReportConfirmationPage() {
                 {receipt.competentAuthority}
               </Detail>
             )}
-            <Detail label="Interne Vorfallreferenz">
-              {receipt.incidentReference}
+            <Detail label="Referenzcode des Vorfalls (2.1)">
+              <span className="font-mono">{receipt.incidentReference}</span>
             </Detail>
             <Detail label="Übertragungsweg">{receipt.channel}</Detail>
           </dl>
@@ -112,8 +112,9 @@ export default function ReportConfirmationPage() {
             </div>
             {receipt.nextDeadlines.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Mit der Abschlussmeldung ist der Meldezyklus für diesen Vorfall
-                beendet.
+                {receipt.reportType === "reclassification"
+                  ? "Mit der Rückstufung endet der Meldezyklus für diesen Vorfall."
+                  : "Mit der Abschlussmeldung ist der Meldezyklus für diesen Vorfall beendet."}
               </p>
             ) : (
               <ul className="space-y-2">

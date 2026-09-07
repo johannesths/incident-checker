@@ -54,6 +54,9 @@ function nextDeadlines(reportType: ReportType, submittedAt: Date): ReportDeadlin
         },
       ];
     case "final":
+    case "reclassification":
+      // Nach der Abschlussmeldung wie nach der Rückstufung läuft keine weitere
+      // Frist dieses Meldezyklus.
       return [];
   }
 }
@@ -66,9 +69,9 @@ export class MockBafinReportingService implements ReportingService {
       submittedAt: submittedAt.toISOString(),
       reportType: input.reportType,
       status: "simulated",
-      channel: "Elektronische Meldung an die BaFin",
+      channel: "Melde- und Veröffentlichungsplattform (MVP) der BaFin",
       nextDeadlines: nextDeadlines(input.reportType, submittedAt),
-      institutionName: input.institutionName,
+      institutionName: input.affectedEntityNames,
       competentAuthority: input.competentAuthority,
       incidentReference: input.incidentReference,
     };

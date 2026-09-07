@@ -30,7 +30,7 @@ const STEPS = [
     step: "03",
     icon: SendHorizonal,
     title: "Meldung (BaFin)",
-    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Erst-, Zwischen- oder Abschlussmeldung samt Fristen.",
+    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Meldung nach dem amtlichen Formular – Erst-, Zwischen- oder Abschlussmeldung samt Fristen.",
     tone: "bg-[var(--tone-orange-300)]",
   },
 ];

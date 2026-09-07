@@ -7,6 +7,7 @@ import {
   Gauge,
   Info,
   Landmark,
+  Network,
   RotateCcw,
   Save,
   UserRound,
@@ -33,6 +34,7 @@ import {
 
 const LEI_PATTERN = /^[A-Z0-9]{20}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
 /** Felder, die eine Zahl ab 0 aufnehmen (leer = keine Angabe). */
 const NUMERIC_FIELDS = [
@@ -58,6 +60,18 @@ function validate(form: CompanyProfile): FieldErrors {
   }
   if (form.contactEmail && !EMAIL_PATTERN.test(form.contactEmail)) {
     errors.contactEmail = "Bitte geben Sie eine gültige E-Mail-Adresse an.";
+  }
+  if (form.secondContactEmail && !EMAIL_PATTERN.test(form.secondContactEmail)) {
+    errors.secondContactEmail =
+      "Bitte geben Sie eine gültige E-Mail-Adresse an.";
+  }
+  if (form.ultimateParentLei && !LEI_PATTERN.test(form.ultimateParentLei)) {
+    errors.ultimateParentLei =
+      "Der LEI besteht aus 20 alphanumerischen Zeichen.";
+  }
+  if (form.reportingCurrency && !CURRENCY_PATTERN.test(form.reportingCurrency)) {
+    errors.reportingCurrency =
+      "Bitte geben Sie einen ISO-4217-Code aus drei Buchstaben an, z. B. EUR.";
   }
   for (const key of NUMERIC_FIELDS) {
     const value = form[key];
@@ -185,8 +199,8 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Kategorie nach Art. 2 Abs. 1 DORA – sie bestimmt, welche
-              Meldevorlage die Aufsicht erwartet.
+              Kategorie nach Art. 2 Abs. 1 Buchst. a–t DORA – Feld 1.4 des
+              Meldeformulars lässt nur diese Kategorien zu.
             </p>
           </div>
 
@@ -270,7 +284,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
         <Section
           icon={UserRound}
           title="Ansprechpartner für die Aufsicht"
-          desc="Kontakt für Rückfragen zu gemeldeten Vorfällen; wird in jede Meldung übernommen."
+          desc="Kontakte für Rückfragen zu gemeldeten Vorfällen (Felder 1.7–1.12 des Meldeformulars); werden in jede Meldung übernommen."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name" htmlFor="contactName">
@@ -301,12 +315,104 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
                 onChange={(e) => update("contactEmail", e.target.value)}
               />
             </Field>
-            <Field label="Telefon" htmlFor="contactPhone">
+            <Field
+              label="Telefon"
+              htmlFor="contactPhone"
+              hint="Mit internationaler Vorwahl, z. B. +49 69 12345678."
+            >
               <Input
                 id="contactPhone"
                 type="tel"
                 value={form.contactPhone}
                 onChange={(e) => update("contactPhone", e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="space-y-4 border-t border-border/60 pt-5">
+            <p className="text-xs font-medium">
+              Zweite Kontaktperson (Feld 1.10) – zulässig ist auch ein
+              verantwortliches Team mit funktionaler Adresse.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Name" htmlFor="secondContactName">
+                <Input
+                  id="secondContactName"
+                  value={form.secondContactName}
+                  onChange={(e) => update("secondContactName", e.target.value)}
+                />
+              </Field>
+              <Field
+                label="E-Mail"
+                htmlFor="secondContactEmail"
+                error={errors.secondContactEmail}
+              >
+                <Input
+                  id="secondContactEmail"
+                  type="email"
+                  value={form.secondContactEmail}
+                  aria-invalid={Boolean(errors.secondContactEmail)}
+                  onChange={(e) => update("secondContactEmail", e.target.value)}
+                />
+              </Field>
+              <Field label="Telefon" htmlFor="secondContactPhone">
+                <Input
+                  id="secondContactPhone"
+                  type="tel"
+                  value={form.secondContactPhone}
+                  onChange={(e) => update("secondContactPhone", e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          icon={Network}
+          title="Gruppe und Berichtswährung"
+          desc="Angaben zur Konzernzugehörigkeit und zur Währung der Meldung (Felder 1.13–1.15 des Meldeformulars)."
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Oberstes Mutterunternehmen"
+              htmlFor="ultimateParentName"
+              hint="Nur auszufüllen, wenn das Unternehmen einer Gruppe angehört."
+            >
+              <Input
+                id="ultimateParentName"
+                value={form.ultimateParentName}
+                onChange={(e) => update("ultimateParentName", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="LEI des Mutterunternehmens"
+              htmlFor="ultimateParentLei"
+              error={errors.ultimateParentLei}
+            >
+              <Input
+                id="ultimateParentLei"
+                maxLength={20}
+                value={form.ultimateParentLei}
+                aria-invalid={Boolean(errors.ultimateParentLei)}
+                onChange={(e) =>
+                  update("ultimateParentLei", e.target.value.toUpperCase().trim())
+                }
+              />
+            </Field>
+            <Field
+              label="Berichtswährung"
+              htmlFor="reportingCurrency"
+              error={errors.reportingCurrency}
+              hint="ISO-4217-Code; in der MVP ist EUR voreingestellt."
+            >
+              <Input
+                id="reportingCurrency"
+                maxLength={3}
+                value={form.reportingCurrency}
+                aria-invalid={Boolean(errors.reportingCurrency)}
+                onChange={(e) =>
+                  update("reportingCurrency", e.target.value.toUpperCase().trim())
+                }
               />
             </Field>
           </div>
