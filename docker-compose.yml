@@ -1,0 +1,22 @@
+# Stack für Portainer: "Stacks → Add stack" und diese Datei einfügen oder das
+# Repository als Quelle angeben. Portainer baut das Abbild dann selbst.
+#
+# Soll stattdessen ein fertiges Abbild laufen, "build" durch
+# "image: <registry>/ind-incident:<tag>" ersetzen.
+
+services:
+  ind-incident:
+    build:
+      context: .
+    image: ind-incident:latest
+    container_name: ind-incident
+    restart: unless-stopped
+    ports:
+      # Nur der Host-Port ist einstellbar; im Container bleibt es Port 3000.
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      # Die Anwendung hält keine Daten auf dem Server – Unternehmensprofil und
+      # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume und
+      # keine weiteren Umgebungsvariablen.
+      TZ: ${TZ:-Europe/Berlin}

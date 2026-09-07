@@ -20,6 +20,61 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Betrieb im Container
+
+Die Anwendung hält serverseitig keine Daten: Unternehmensprofil und
+Vorfallentwürfe liegen im Browser des Anwenders. Der Container ist damit
+zustandslos – er braucht kein Volume, keine Datenbank und keine
+Umgebungsvariablen.
+
+```bash
+docker compose up -d --build
+```
+
+Danach läuft die Anwendung auf http://localhost:3000. Ein anderer Host-Port
+lässt sich über `HOST_PORT` setzen:
+
+```bash
+HOST_PORT=8080 docker compose up -d --build
+```
+
+### Portainer
+
+Unter **Stacks → Add stack** entweder
+
+- **Repository** wählen und dieses Repository samt `docker-compose.yml`
+  angeben – Portainer baut das Abbild dann selbst –, oder
+- **Web editor** wählen und den Inhalt der `docker-compose.yml` einfügen.
+
+Im Abschnitt *Environment variables* sind `HOST_PORT` und `TZ` einstellbar.
+Läuft die Anwendung hinter einem Reverse Proxy, kann die
+Portfreigabe in der `docker-compose.yml` entfallen; der Proxy erreicht den
+Container dann über Port 3000 im gemeinsamen Netzwerk.
+
+Der Container bringt eine Zustandsprüfung mit: Portainer zeigt ihn nach dem
+Start als *healthy*, sobald die Startseite ausgeliefert wird.
+
+### Fertiges Abbild ausliefern
+
+Statt in Portainer zu bauen, lässt sich das Abbild auch vorab erzeugen und in
+eine Registry schieben; in der `docker-compose.yml` tritt dann `image` an die
+Stelle von `build`.
+
+```bash
+docker build -t <registry>/ind-incident:<tag> .
+docker push <registry>/ind-incident:<tag>
+```
+
+### Prüfungen gegen den Container
+
+Beide Prüfskripte sprechen eine laufende Instanz an und funktionieren auch
+gegen den Container:
+
+```bash
+BASE_URL=http://127.0.0.1:3000 npm run test:severity
+BASE_URL=http://127.0.0.1:3000 npm run test:report
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
