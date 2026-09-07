@@ -79,7 +79,7 @@ export class MockTriageService implements TriageService {
         isIncident: false,
         recommendation: "Kein IKT-bezogener Vorfall – ServiceDesk ist verantwortlich.",
         reasoning:
-          "Die Beschreibung deutet auf ein Standard-Supportanliegen hin (z. B. Zugang/Hardware). [Mock-Heuristik]",
+          "Die Beschreibung deutet auf ein Standard-Supportanliegen hin (z. B. Zugang/Hardware).",
         confidence: 0.6,
       };
     }
@@ -90,7 +90,7 @@ export class MockTriageService implements TriageService {
         recommendation:
           "Möglicher IKT-bezogener Vorfall – an das Incident-Response-Team weiterleiten und Schweregrad bestimmen.",
         reasoning:
-          "Die Beschreibung enthält Hinweise auf eine Störung oder einen sicherheitsrelevanten Vorfall. [Mock-Heuristik]",
+          "Die Beschreibung enthält Hinweise auf eine Störung oder einen sicherheitsrelevanten Vorfall.",
         confidence: 0.65,
       };
     }
@@ -99,7 +99,7 @@ export class MockTriageService implements TriageService {
       isIncident: false,
       recommendation: "Unklar – bitte zusätzliche Informationen einholen.",
       reasoning:
-        "Aus der Beschreibung lässt sich keine eindeutige Einordnung ableiten. [Mock-Heuristik]",
+        "Aus der Beschreibung lässt sich keine eindeutige Einordnung ableiten.",
       confidence: 0.4,
     };
   }
@@ -109,7 +109,7 @@ export class MockSeverityService implements SeverityService {
   async assess(input: SeverityInput): Promise<SeverityResult> {
     const findings: CriterionFinding[] = DORA_CRITERIA.map((criterion) => {
       let thresholdMet = false;
-      let assessment = "Keine ausreichenden Angaben zur Bewertung. [Mock]";
+      let assessment = "Keine ausreichenden Angaben zur Bewertung.";
 
       switch (criterion.id) {
         case "clients_transactions": {
@@ -257,19 +257,19 @@ export class MockSeverityService implements SeverityService {
     if (!criticalityMet) {
       summary =
         "Kein Tatbestand des Kriteriums „Kritikalität der betroffenen Dienste“ (Art. 6 RTS) erfüllt – " +
-        `daher kein schwerwiegender Vorfall, unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht). [Mock]`;
+        `daher kein schwerwiegender Vorfall, unabhängig von den übrigen Kriterien (${metCount} von ${findings.length} erreicht).`;
     } else if (accessWithDataLossRisk) {
       summary =
         "Erfolgreicher böswilliger unbefugter Zugriff auf die Netzwerk- und Informationssysteme, " +
-        "der zu Datenverlusten führen kann – stets schwerwiegender Vorfall (Art. 8 Abs. 1 Buchst. a RTS). [Mock]";
+        "der zu Datenverlusten führen kann – stets schwerwiegender Vorfall (Art. 8 Abs. 1 Buchst. a RTS).";
     } else if (otherMetCount >= 2) {
       summary =
         `Kritikalitätskriterium erfüllt und ${otherMetCount} weitere Kriterien erreichen ihre Schwelle ` +
-        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend (Art. 8 Abs. 1 Buchst. b RTS). [Mock]`;
+        `(${metCount} von ${findings.length} insgesamt). Einstufung als schwerwiegend (Art. 8 Abs. 1 Buchst. b RTS).`;
     } else {
       summary =
         `Kritikalitätskriterium erfüllt, jedoch erreichen weniger als zwei weitere Kriterien ihre Schwelle ` +
-        `(${otherMetCount} erreicht) und kein böswilliger Zugriff mit möglichem Datenverlust – daher kein schwerwiegender Vorfall. [Mock]`;
+        `(${otherMetCount} erreicht) und kein böswilliger Zugriff mit möglichem Datenverlust – daher kein schwerwiegender Vorfall.`;
     }
 
     return {

@@ -6,6 +6,7 @@ import {
   ShieldQuestion,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { CompanyProfileCard } from "@/components/company-profile-card";
 
 const STEPS = [
   {
@@ -29,7 +30,7 @@ const STEPS = [
     step: "03",
     icon: SendHorizonal,
     title: "Meldung (BaFin)",
-    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Erst-, Zwischen- oder Abschlussmeldung samt Fristen. Hinweis: Die Übermittlung ist derzeit simuliert – eine Schnittstelle der BaFin ist nicht angebunden.",
+    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Erst-, Zwischen- oder Abschlussmeldung samt Fristen.",
     tone: "bg-[var(--tone-orange-300)]",
   },
 ];
@@ -49,10 +50,12 @@ export default function Home() {
           Diese Anwendung unterstützt Finanzunternehmen dabei, mögliche
           IKT-bezogene Vorfälle nach den Vorgaben der EU-Verordnung DORA
           einzuordnen: Erfassen Sie ein Ereignis, prüfen Sie die Zuständigkeit,
-          bestimmen Sie den Schweregrad und melden Sie den Vorfall –
-          nachvollziehbar und in drei klaren Schritten.
+          bestimmen Sie den Schweregrad und melden Sie den Vorfall
         </p>
       </section>
+
+      {/* Unternehmen, für das die Anwendung eingerichtet ist */}
+      <CompanyProfileCard />
 
       {/* Schritte */}
       <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -87,8 +90,8 @@ export default function Home() {
       <p className="mx-auto max-w-2xl text-center text-xs text-muted-foreground">
         Hinweis: Die Anwendung dient der Entscheidungsunterstützung und ersetzt
         keine abschließende fachliche Bewertung oder die formale Meldung an die
-        Aufsicht. Die Bewertung erfolgt derzeit über eine Platzhalter-Logik; die
-        Schwellenwerte sind gegen den aktuellen DORA-RTS zu verifizieren.
+        Aufsicht. Die hinterlegten Schwellenwerte sind gegen den aktuellen
+        DORA-RTS zu verifizieren.
       </p>
     </div>
   );

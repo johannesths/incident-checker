@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   ArrowRight,
+  Building2,
   Check,
   ClipboardList,
   Clock,
@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   ShieldQuestion,
+  UserRound,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,6 @@ import { CRITERION_BY_ID } from "@/lib/dora/criteria";
 import {
   REPORT_TYPES,
   REPORT_TYPE_BY_ID,
-  SIMULATION_NOTICE,
   getReportObligation,
   type ObligationLevel,
 } from "@/lib/dora/reporting";
@@ -37,12 +37,29 @@ import {
   updateSession,
   useSessionValue,
 } from "@/lib/session-store";
+import {
+  entityTypeLabel,
+  formatAddress,
+  type CompanyProfile,
+} from "@/lib/company/profile";
+import { useCompanyProfile } from "@/lib/company/store";
 import type { ReportInput, ReportReceipt, SeverityResult } from "@/lib/schemas";
 
-/** Im Formular erfasste Angaben (die Einstufung kommt aus Schritt 02). */
+/**
+ * Im Formular erfasste Angaben. Die Einstufung kommt aus Schritt 02, die
+ * Stammdaten des Unternehmens aus dem Profil (Einstellungen) – beides wird
+ * beim Absenden ergänzt.
+ */
 type ReportForm = Omit<
   ReportInput,
-  "classification" | "criteriaMet" | "voluntary"
+  | "classification"
+  | "criteriaMet"
+  | "voluntary"
+  | "entityType"
+  | "bafinId"
+  | "entityAddress"
+  | "competentAuthority"
+  | "contactRole"
 > & { voluntary: boolean };
 
 const emptyForm: ReportForm = {
@@ -139,7 +156,7 @@ const STEPS: StepDef[] = [
   {
     id: "institution",
     title: "Meldendes Finanzunternehmen",
-    hint: "Angaben zur Identifikation des Unternehmens gegenüber der Aufsicht.",
+    hint: "Angaben zur Identifikation des Unternehmens gegenüber der Aufsicht – aus dem Unternehmensprofil vorbelegt und hier änderbar.",
     summary: (f) => join([f.institutionName, f.lei]),
     complete: (f) =>
       f.institutionName.trim().length > 0 && LEI_PATTERN.test(f.lei),
@@ -147,7 +164,7 @@ const STEPS: StepDef[] = [
   {
     id: "contact",
     title: "Ansprechpartner",
-    hint: "Kontakt für Rückfragen der Aufsicht zum gemeldeten Vorfall.",
+    hint: "Kontakt für Rückfragen der Aufsicht zum gemeldeten Vorfall – aus dem Unternehmensprofil vorbelegt und hier änderbar.",
     summary: (f) => join([f.contactName, f.contactEmail, f.contactPhone]),
     complete: (f) =>
       f.contactName.trim().length > 0 && /^\S+@\S+\.\S+$/.test(f.contactEmail),
@@ -155,7 +172,7 @@ const STEPS: StepDef[] = [
   {
     id: "incident",
     title: "Vorfall",
-    hint: "Der Zeitpunkt der Kenntniserlangung ist Ausgangspunkt der 24-Stunden-Frist für die Erstmeldung.",
+    hint: "Der Zeitpunkt der Kenntniserlangung ist Ausgangspunkt der 24-Stunden-Frist für die Erstmeldung. Die Vorfallreferenz beginnt mit dem Präfix aus dem Unternehmensprofil.",
     summary: (f) =>
       join([
         f.incidentReference,
@@ -190,9 +207,31 @@ interface ReportDraft {
   activeStep: StepId | null;
 }
 
-function initialDraft(description: string): ReportDraft {
+/**
+ * Vorbelegung aus dem Unternehmensprofil: die Angaben, die bei jeder Meldung
+ * gleich sind. Sie bleiben im Formular änderbar – die Meldung kann etwa von
+ * einer anderen Vertretung abgegeben werden als der im Profil hinterlegten.
+ */
+function formFromProfile(
+  profile: CompanyProfile | undefined,
+): Partial<ReportForm> {
+  if (!profile) return {};
   return {
-    form: { ...emptyForm, description },
+    institutionName: profile.name,
+    lei: profile.lei,
+    contactName: profile.contactName,
+    contactEmail: profile.contactEmail,
+    contactPhone: profile.contactPhone,
+    incidentReference: profile.incidentReferencePrefix,
+  };
+}
+
+function initialDraft(
+  description: string,
+  profile: CompanyProfile | undefined,
+): ReportDraft {
+  return {
+    form: { ...emptyForm, ...formFromProfile(profile), description },
     stepStatus: initialStatus,
     activeStep: "type",
   };
@@ -206,8 +245,9 @@ function initialDraft(description: string): ReportDraft {
 function withDefaults(
   stored: (Partial<ReportDraft> & Partial<ReportForm>) | null | undefined,
   description: string,
+  profile: CompanyProfile | undefined,
 ): ReportDraft {
-  const base = initialDraft(description);
+  const base = initialDraft(description, profile);
   if (!stored) return base;
   const form = stored.form ?? (stored.reportType ? (stored as ReportForm) : null);
   return {
@@ -228,21 +268,27 @@ export default function ReportPage() {
     STORAGE_KEYS.severityDraft,
   );
   const prefillDescription = severityDraft?.form?.description ?? "";
+  const profile = useCompanyProfile();
   const stored = useSessionValue<Partial<ReportDraft> & Partial<ReportForm>>(
     STORAGE_KEYS.reportDraft,
   );
-  const draft = withDefaults(stored, prefillDescription);
+  const draft = withDefaults(stored, prefillDescription, profile);
   const { form, stepStatus, activeStep } = draft;
 
   function patch(fn: (d: ReportDraft) => ReportDraft) {
     updateSession<Partial<ReportDraft> & Partial<ReportForm>>(
       STORAGE_KEYS.reportDraft,
-      (current) => fn(withDefaults(current, prefillDescription)),
+      (current) => fn(withDefaults(current, prefillDescription, profile)),
     );
   }
 
   function update<K extends keyof ReportForm>(key: K, value: ReportForm[K]) {
     patch((d) => ({ ...d, form: { ...d.form, [key]: value } }));
+  }
+
+  /** Angaben (erneut) aus dem Unternehmensprofil übernehmen. */
+  function applyProfileFields(fields: Partial<ReportForm>) {
+    patch((d) => ({ ...d, form: { ...d.form, ...fields } }));
   }
 
   function toggleStep(id: StepId) {
@@ -273,6 +319,16 @@ export default function ReportPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          // Stammdaten unverändert aus dem Profil, nicht aus dem Formular.
+          ...(profile
+            ? {
+                entityType: entityTypeLabel(profile),
+                bafinId: profile.bafinId,
+                entityAddress: formatAddress(profile),
+                competentAuthority: profile.competentAuthority,
+                contactRole: profile.contactRole,
+              }
+            : {}),
           classification: result.classification,
           criteriaMet: result.findings
             .filter((f) => f.thresholdMet)
@@ -331,7 +387,7 @@ export default function ReportPage() {
               >
                 <Input
                   id="previousSubmissionId"
-                  placeholder="z. B. SIM-20260810-ABC123"
+                  placeholder="z. B. MLD-20260810-ABC123"
                   value={form.previousSubmissionId}
                   onChange={(e) =>
                     update("previousSubmissionId", e.target.value)
@@ -344,55 +400,124 @@ export default function ReportPage() {
 
       case "institution":
         return (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Name des Unternehmens" htmlFor="institutionName">
-              <Input
-                id="institutionName"
-                value={form.institutionName}
-                onChange={(e) => update("institutionName", e.target.value)}
-              />
-            </Field>
-            <Field label="LEI (20 Zeichen)" htmlFor="lei">
-              <Input
-                id="lei"
-                maxLength={20}
-                placeholder="z. B. 529900T8BM49AURSDO55"
-                value={form.lei}
-                onChange={(e) =>
-                  update("lei", e.target.value.toUpperCase().trim())
-                }
-              />
-            </Field>
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Name des Unternehmens" htmlFor="institutionName">
+                <Input
+                  id="institutionName"
+                  value={form.institutionName}
+                  onChange={(e) => update("institutionName", e.target.value)}
+                />
+              </Field>
+              <Field label="LEI (20 Zeichen)" htmlFor="lei">
+                <Input
+                  id="lei"
+                  maxLength={20}
+                  placeholder="z. B. 529900T8BM49AURSDO55"
+                  value={form.lei}
+                  onChange={(e) =>
+                    update("lei", e.target.value.toUpperCase().trim())
+                  }
+                />
+              </Field>
+            </div>
+            {profile &&
+              (form.institutionName !== profile.name ||
+                form.lei !== profile.lei) && (
+                <ProfileApplyButton
+                  icon={Building2}
+                  onClick={() =>
+                    applyProfileFields({
+                      institutionName: profile.name,
+                      lei: profile.lei,
+                    })
+                  }
+                />
+              )}
+            {profile && (
+              <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-medium">
+                    Weitere Stammdaten aus dem Unternehmensprofil
+                  </p>
+                  <Link
+                    href="/einstellungen"
+                    className="text-xs font-medium text-primary hover:text-primary/80"
+                  >
+                    Profil bearbeiten
+                  </Link>
+                </div>
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  <ProfileDetail
+                    label="Art des Unternehmens"
+                    value={entityTypeLabel(profile)}
+                  />
+                  <ProfileDetail label="BaFin-ID" value={profile.bafinId} />
+                  <ProfileDetail label="Sitz" value={formatAddress(profile)} />
+                  <ProfileDetail
+                    label="Zuständige Behörde"
+                    value={profile.competentAuthority}
+                  />
+                </dl>
+                <p className="text-xs text-muted-foreground">
+                  Diese Angaben werden unverändert mitgemeldet und sind nur in
+                  den Einstellungen änderbar.
+                </p>
+              </div>
+            )}
+          </>
         );
 
       case "contact":
         return (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Name" htmlFor="contactName">
-              <Input
-                id="contactName"
-                value={form.contactName}
-                onChange={(e) => update("contactName", e.target.value)}
-              />
-            </Field>
-            <Field label="E-Mail" htmlFor="contactEmail">
-              <Input
-                id="contactEmail"
-                type="email"
-                value={form.contactEmail}
-                onChange={(e) => update("contactEmail", e.target.value)}
-              />
-            </Field>
-            <Field label="Telefon (optional)" htmlFor="contactPhone">
-              <Input
-                id="contactPhone"
-                type="tel"
-                value={form.contactPhone}
-                onChange={(e) => update("contactPhone", e.target.value)}
-              />
-            </Field>
-          </div>
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Name" htmlFor="contactName">
+                <Input
+                  id="contactName"
+                  value={form.contactName}
+                  onChange={(e) => update("contactName", e.target.value)}
+                />
+              </Field>
+              <Field label="E-Mail" htmlFor="contactEmail">
+                <Input
+                  id="contactEmail"
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={(e) => update("contactEmail", e.target.value)}
+                />
+              </Field>
+              <Field label="Telefon (optional)" htmlFor="contactPhone">
+                <Input
+                  id="contactPhone"
+                  type="tel"
+                  value={form.contactPhone}
+                  onChange={(e) => update("contactPhone", e.target.value)}
+                />
+              </Field>
+            </div>
+            {profile &&
+              (form.contactName !== profile.contactName ||
+                form.contactEmail !== profile.contactEmail ||
+                form.contactPhone !== profile.contactPhone) && (
+                <ProfileApplyButton
+                  icon={UserRound}
+                  onClick={() =>
+                    applyProfileFields({
+                      contactName: profile.contactName,
+                      contactEmail: profile.contactEmail,
+                      contactPhone: profile.contactPhone,
+                    })
+                  }
+                />
+              )}
+            {profile?.contactRole && (
+              <p className="text-xs text-muted-foreground">
+                Funktion laut Unternehmensprofil: {profile.contactRole} – wird
+                mitgemeldet.
+              </p>
+            )}
+          </>
         );
 
       case "incident":
@@ -475,14 +600,6 @@ export default function ReportPage() {
         title="Meldung an die BaFin"
         desc="Erstellen Sie aus der Einstufung die Meldung nach Art. 19 DORA – Angabe für Angabe, wie bei der Schweregradbestimmung."
       />
-
-      <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
-        <div className="space-y-1 text-sm">
-          <p className="font-medium">Keine echte Übermittlung</p>
-          <p className="text-muted-foreground">{SIMULATION_NOTICE}</p>
-        </div>
-      </div>
 
       {/* Besteht überhaupt eine Meldepflicht? */}
       <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card/70 p-5 backdrop-blur">
@@ -628,7 +745,7 @@ export default function ReportPage() {
               ) : (
                 <Send className="size-4" />
               )}
-              Meldung absenden (Simulation)
+              Meldung absenden
             </Button>
           </div>
           {blocked && (
@@ -656,6 +773,36 @@ function Field({
     <div className="space-y-2">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Erscheint nur, wenn die erfassten Angaben vom Profil abweichen – etwa nach
+ * einer Änderung in den Einstellungen oder einer versehentlichen Überschreibung.
+ */
+function ProfileApplyButton({
+  icon: Icon,
+  onClick,
+}: {
+  icon: typeof Building2;
+  onClick: () => void;
+}) {
+  return (
+    <Button type="button" size="sm" variant="ghost" onClick={onClick}>
+      <Icon className="size-4" />
+      Aus Unternehmensprofil übernehmen
+    </Button>
+  );
+}
+
+function ProfileDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="truncate text-xs font-medium" title={value || undefined}>
+        {value || "—"}
+      </dd>
     </div>
   );
 }

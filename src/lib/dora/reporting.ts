@@ -97,7 +97,3 @@ export function getReportObligation(
       };
   }
 }
-
-/** Hinweis, der in der gesamten Meldefunktion sichtbar bleiben muss. */
-export const SIMULATION_NOTICE =
-  "Simulation: Es besteht keine Anbindung an die BaFin. Die Meldung wird lokal erzeugt und nicht übermittelt – die tatsächliche Meldung ist weiterhin über die offiziellen Wege der BaFin abzugeben.";

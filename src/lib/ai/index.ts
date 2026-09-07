@@ -4,9 +4,7 @@ import type { SeverityService, TriageService } from "./types";
 /**
  * Zentrale Stelle, an der die konkrete KI-Implementierung gewählt wird.
  *
- * Aktuell: Mock-Implementierungen. Sobald die echte KI-Schicht existiert
- * (z. B. ClaudeTriageService in ./claude), wird sie hier eingehängt –
- * gesteuert z. B. über eine Umgebungsvariable.
+ * Aktuell: Mock-Implementierungen
  */
 
 export function getTriageService(): TriageService {

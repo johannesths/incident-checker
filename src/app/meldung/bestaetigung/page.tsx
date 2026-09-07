@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Clock,
@@ -12,7 +11,6 @@ import {
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { REPORT_TYPE_BY_ID } from "@/lib/dora/reporting";
@@ -68,18 +66,8 @@ export default function ReportConfirmationPage() {
       <PageHeader
         step="Schritt 03 · Bestätigung"
         title="Meldung erfasst"
-        desc="Quittung der (simulierten) Übermittlung an die zuständige Behörde."
+        desc="Quittung der Übermittlung an die zuständige Behörde."
       />
-
-      <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
-        <div className="space-y-1 text-sm">
-          <p className="font-medium">
-            Diese Meldung wurde nicht an die BaFin übermittelt
-          </p>
-          <p className="text-muted-foreground">{receipt.notice}</p>
-        </div>
-      </div>
 
       <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">
         <div className="absolute inset-x-0 top-0 h-1 bg-success" />
@@ -94,9 +82,6 @@ export default function ReportConfirmationPage() {
                 {reportType.description}
               </p>
             </div>
-            <Badge variant="secondary" className="ml-auto shrink-0">
-              Simuliert
-            </Badge>
           </div>
 
           <dl className="grid gap-4 sm:grid-cols-2">
@@ -107,6 +92,11 @@ export default function ReportConfirmationPage() {
               {formatDateTime(receipt.submittedAt)}
             </Detail>
             <Detail label="Finanzunternehmen">{receipt.institutionName}</Detail>
+            {receipt.competentAuthority && (
+              <Detail label="Zuständige Behörde">
+                {receipt.competentAuthority}
+              </Detail>
+            )}
             <Detail label="Interne Vorfallreferenz">
               {receipt.incidentReference}
             </Detail>

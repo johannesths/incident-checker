@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -33,6 +34,12 @@ import {
 } from "@/lib/dora/criteria";
 import { CLASSIFICATION } from "@/lib/dora/presentation";
 import { SEVERITY_SCENARIOS } from "@/lib/demo-data";
+import {
+  formatProfileNumber,
+  profileNumber,
+  type CompanyProfile,
+} from "@/lib/company/profile";
+import { useCompanyProfile } from "@/lib/company/store";
 import {
   STORAGE_KEYS,
   clearSession,
@@ -370,6 +377,8 @@ function withDefaults(draft: SeverityDraft | null | undefined): SeverityDraft {
 export default function SeverityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  // Stammdaten des Unternehmens: Bezugsgrößen für die Materialitätsschwellen.
+  const profile = useCompanyProfile();
   // Der Bearbeitungsstand liegt im sessionStorage, damit der Rückweg von der
   // Ergebnisseite die Eingaben erhält.
   const draft = withDefaults(
@@ -664,6 +673,7 @@ export default function SeverityPage() {
             >
               Relevante Kunden/Gegenparteien betroffen
             </TogglePill>
+            {profile && <ProfileReference profile={profile} />}
           </>
         );
 
@@ -732,6 +742,14 @@ export default function SeverityPage() {
                 />
               </Field>
             </div>
+            {profile &&
+              profileNumber(profile.memberStatesOfOperation) !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Laut Unternehmensprofil ist {profile.name} in{" "}
+                  {formatProfileNumber(profile.memberStatesOfOperation)}{" "}
+                  Mitgliedstaaten tätig.
+                </p>
+              )}
             {Number(form.memberStatesAffected) >= 2 && (
               <div className="space-y-2">
                 <Label>Erheblich betroffene Bereiche</Label>
@@ -1123,6 +1141,57 @@ export default function SeverityPage() {
 /* ---------------------------------------------------------------------------
  * Bausteine
  * ------------------------------------------------------------------------- */
+
+/**
+ * Bezugsgrößen aus dem Unternehmensprofil. Maßgeblich für die Schwellen des
+ * Art. 1 RTS sind die Werte des betroffenen Dienstes – die Unternehmenswerte
+ * ordnen die erfassten Zahlen nur ein und werden deshalb nicht verrechnet.
+ */
+function ProfileReference({ profile }: { profile: CompanyProfile }) {
+  const parts: string[] = [];
+
+  const clients = formatProfileNumber(profile.totalClients);
+  if (clients) parts.push(`${clients} Kunden insgesamt`);
+
+  const txCount = profileNumber(profile.dailyTransactionsCount);
+  if (txCount !== null) {
+    parts.push(
+      `Ø ${nf.format(txCount)} Transaktionen pro Tag – 10 % entsprechen ${nf.format(Math.round(txCount * 0.1))}`,
+    );
+  }
+
+  const txValue = profileNumber(profile.dailyTransactionsValueEur);
+  if (txValue !== null) {
+    parts.push(
+      `Ø ${nf.format(txValue)} EUR Transaktionswert pro Tag – 10 % entsprechen ${nf.format(Math.round(txValue * 0.1))} EUR`,
+    );
+  }
+
+  if (parts.length === 0) return null;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3 text-xs">
+      <p className="font-medium">
+        Referenzwerte aus dem Unternehmensprofil ({profile.name})
+      </p>
+      <ul className="space-y-1 text-muted-foreground">
+        {parts.map((part) => (
+          <li key={part}>{part}</li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground">
+        Maßgeblich sind die Werte des betroffenen Dienstes; die
+        Unternehmenswerte dienen nur der Einordnung.{" "}
+        <Link
+          href="/einstellungen"
+          className="font-medium text-primary hover:text-primary/80"
+        >
+          Profil bearbeiten
+        </Link>
+      </p>
+    </div>
+  );
+}
 
 function ChoiceButton({
   selected,

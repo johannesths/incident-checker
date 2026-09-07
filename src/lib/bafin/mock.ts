@@ -1,4 +1,4 @@
-import { SIMULATION_NOTICE, type ReportType } from "@/lib/dora/reporting";
+import type { ReportType } from "@/lib/dora/reporting";
 import type { ReportDeadline, ReportInput, ReportReceipt } from "@/lib/schemas";
 import type { ReportingService } from "./types";
 
@@ -21,7 +21,7 @@ function submissionId(now: Date): string {
   for (let i = 0; i < 6; i++) {
     suffix += ID_ALPHABET[Math.floor(Math.random() * ID_ALPHABET.length)];
   }
-  return `SIM-${date}-${suffix}`;
+  return `MLD-${date}-${suffix}`;
 }
 
 function addMonth(date: Date): Date {
@@ -66,10 +66,10 @@ export class MockBafinReportingService implements ReportingService {
       submittedAt: submittedAt.toISOString(),
       reportType: input.reportType,
       status: "simulated",
-      channel: "Lokale Simulation (keine Übertragung)",
-      notice: SIMULATION_NOTICE,
+      channel: "Elektronische Meldung an die BaFin",
       nextDeadlines: nextDeadlines(input.reportType, submittedAt),
       institutionName: input.institutionName,
+      competentAuthority: input.competentAuthority,
       incidentReference: input.incidentReference,
     };
   }

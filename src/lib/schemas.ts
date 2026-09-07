@@ -198,8 +198,22 @@ export const reportInputSchema = z.object({
   lei: z
     .string()
     .regex(/^[A-Z0-9]{20}$/, "Der LEI besteht aus 20 alphanumerischen Zeichen."),
+  /*
+   * Stammdaten aus dem Unternehmensprofil (Einstellungen). Sie werden nicht im
+   * Meldeformular erfasst, sondern beim Absenden aus dem Profil übernommen –
+   * die Meldevorlagen der Aufsicht verlangen sie zusätzlich zu Name und LEI.
+   */
+  /** Art des Finanzunternehmens (Art. 2 Abs. 1 DORA), Klartext. */
+  entityType: z.string().optional().default(""),
+  /** Unternehmensnummer bei der Aufsicht (BaFin-ID). */
+  bafinId: z.string().optional().default(""),
+  /** Anschrift des Unternehmens, einzeilig. */
+  entityAddress: z.string().optional().default(""),
+  /** Zuständige Behörde, an die die Meldung geht. */
+  competentAuthority: z.string().optional().default(""),
   /** Ansprechpartner für Rückfragen der Behörde. */
   contactName: z.string().min(1, "Bitte geben Sie einen Ansprechpartner an."),
+  contactRole: z.string().optional().default(""),
   contactEmail: z.email("Bitte geben Sie eine gültige E-Mail-Adresse an."),
   contactPhone: z.string().optional().default(""),
   /** Interne Referenz des Vorfalls (verknüpft Folgemeldungen). */
@@ -258,10 +272,11 @@ export const reportReceiptSchema = z.object({
   status: z.literal("simulated"),
   /** Bezeichnung des (simulierten) Übertragungswegs. */
   channel: z.string(),
-  notice: z.string(),
   /** Fristen, die nach dieser Meldung noch laufen. */
   nextDeadlines: z.array(reportDeadlineSchema),
   institutionName: z.string(),
+  /** Empfängerin der Meldung laut Unternehmensprofil. */
+  competentAuthority: z.string().optional().default(""),
   incidentReference: z.string(),
 });
 
