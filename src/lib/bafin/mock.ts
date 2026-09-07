@@ -70,7 +70,7 @@ function nextDeadlines(
           dueAt: new Date(
             submittedAt.getTime() + HOURS_AFTER_INITIAL_REPORT * HOUR_MS,
           ).toISOString(),
-          basis: `Art. 5 Abs. 1 Buchst. b – ${HOURS_AFTER_INITIAL_REPORT} Stunden nach Übermittlung der Erstmeldung, auch ohne Änderung des Sachstands`,
+          basis: `${HOURS_AFTER_INITIAL_REPORT} Stunden nach Übermittlung der Erstmeldung, auch ohne Änderung des Sachstands`,
         },
       ];
     case "intermediate":
@@ -79,7 +79,7 @@ function nextDeadlines(
           reportType: "final",
           dueAt: addMonth(submittedAt).toISOString(),
           basis:
-            "Art. 5 Abs. 1 Buchst. c – ein Monat nach Übermittlung der Zwischenmeldung bzw. der letzten aktualisierten Zwischenmeldung",
+            "ein Monat nach Übermittlung der Zwischenmeldung bzw. der letzten aktualisierten Zwischenmeldung",
         },
       ];
     case "final":

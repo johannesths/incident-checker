@@ -35,7 +35,11 @@ export type CheckSeverity = "error" | "warning";
 export interface ReportCheck {
   id: string;
   severity: CheckSeverity;
-  /** Fundstelle der Angabe, auf die sich der Befund bezieht. */
+  /**
+   * Fundstelle der Angabe im RTS, auf die sich der Befund bezieht. Die
+   * Oberfläche zeigt sie nicht; sie bleibt für die Antwort der Schnittstelle
+   * und für die Nachvollziehbarkeit erhalten.
+   */
   field: string;
   message: string;
 }
@@ -174,7 +178,7 @@ export function checkReport(
       "missing_critical_services",
       "error",
       "Art. 2 Buchst. d",
-      "Das Kriterium „Kritikalität der betroffenen Dienste“ ist Voraussetzung jedes schwerwiegenden Vorfalls (Art. 8 Abs. 1 DelVO (EU) 2024/1772).",
+      "Das Kriterium „Kritikalität der betroffenen Dienste“ ist Voraussetzung jedes schwerwiegenden Vorfalls.",
     );
   }
 
@@ -242,7 +246,7 @@ export function checkReport(
       "downtime_exceeds_duration",
       "warning",
       "Art. 3 Buchst. d",
-      "Die Ausfallzeit übersteigt die Dauer des Vorfalls. Beide Angaben sind voneinander abzugrenzen (Art. 3 DelVO (EU) 2024/1772) – bitte prüfen Sie sie.",
+      "Die Ausfallzeit übersteigt die Dauer des Vorfalls – bitte prüfen Sie die Angaben.",
     );
   }
 

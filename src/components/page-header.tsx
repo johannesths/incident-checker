@@ -5,7 +5,7 @@ export function PageHeader({
 }: {
   step: string;
   title: string;
-  desc: string;
+  desc?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -13,7 +13,9 @@ export function PageHeader({
         {step}
       </span>
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      <p className="max-w-2xl text-sm text-muted-foreground">{desc}</p>
+      {desc && (
+        <p className="max-w-2xl text-sm text-muted-foreground">{desc}</p>
+      )}
     </div>
   );
 }

@@ -70,7 +70,6 @@ import {
   THREAT_ACTIVITY_CHANGES,
   THREAT_STATUSES,
   THREAT_TECHNIQUES,
-  fieldRef,
   rootCauseDetailId,
   type ContentArticle,
 } from "@/lib/dora/report-fields";
@@ -291,14 +290,6 @@ interface StepDef {
   id: StepId;
   /** Artikel des RTS, dessen Inhalte dieser Schritt abdeckt. */
   article: ContentArticle;
-  /** Buchstaben innerhalb des Artikels. */
-  letters: string;
-  /**
-   * Abweichende Fundstelle je Meldung. Die allgemeinen Angaben etwa verlangt
-   * die Vorfallmeldung unmittelbar nach Art. 1, die freiwillige Meldung über
-   * den Verweis in Art. 6 Buchst. a.
-   */
-  sourceFor?: (kind: SubmissionKind) => string;
   /** Meldungen, die diesen Schritt verlangen. */
   kinds: SubmissionKind[];
   title: string;
@@ -377,11 +368,6 @@ const STEPS: StepDef[] = [
   {
     id: "submission",
     article: 1,
-    letters: "a",
-    // Die Art der Übermittlung kennt nur die Vorfallmeldung; die freiwillige
-    // Meldung erheblicher Cyberbedrohungen steht für sich (Art. 19 Abs. 2 DORA).
-    sourceFor: (kind) =>
-      kind === "incident" ? fieldRef(1, "a") : "Art. 19 Abs. 2 DORA",
     kinds: BOTH,
     title: "Art der Meldung",
     summary: (f) =>
@@ -397,7 +383,6 @@ const STEPS: StepDef[] = [
   {
     id: "entity",
     article: 1,
-    letters: "b–d, f, g",
     kinds: BOTH,
     title: "Meldendes Finanzunternehmen",
     summary: (f) => join([f.entityName, f.entityLei, f.reportingCurrency]),
@@ -413,7 +398,6 @@ const STEPS: StepDef[] = [
   {
     id: "contacts",
     article: 1,
-    letters: "e",
     kinds: BOTH,
     title: "Verantwortliche für die Kommunikation mit der Behörde",
     summary: (f) =>
@@ -430,7 +414,6 @@ const STEPS: StepDef[] = [
   {
     id: "identification",
     article: 2,
-    letters: "a, b",
     kinds: INCIDENT,
     title: "Referenzcode, Erkennung und Einstufung",
     summary: (f) =>
@@ -447,7 +430,6 @@ const STEPS: StepDef[] = [
   {
     id: "description",
     article: 2,
-    letters: "c, j",
     kinds: INCIDENT,
     title: "Beschreibung des Vorfalls",
     summary: (f) => f.description.trim(),
@@ -456,7 +438,6 @@ const STEPS: StepDef[] = [
   {
     id: "criteria",
     article: 2,
-    letters: "d, e",
     kinds: INCIDENT,
     title: "Einstufungskriterien und betroffene Mitgliedstaaten",
     summary: (f) =>
@@ -470,7 +451,6 @@ const STEPS: StepDef[] = [
   {
     id: "detection",
     article: 2,
-    letters: "f–h",
     kinds: INCIDENT,
     title: "Erkennung, Ursprung und Geschäftsfortführung",
     summary: (f) =>
@@ -485,7 +465,6 @@ const STEPS: StepDef[] = [
   {
     id: "reclassification",
     article: 2,
-    letters: "i",
     kinds: INCIDENT,
     title: "Neueinstufung als nicht schwerwiegend",
     summary: (f) =>
@@ -499,7 +478,6 @@ const STEPS: StepDef[] = [
   {
     id: "timing",
     article: 3,
-    letters: "b, c",
     kinds: INCIDENT,
     title: "Eintreten und Wiederaufnahme des Geschäftsbetriebs",
     summary: (f) =>
@@ -513,7 +491,6 @@ const STEPS: StepDef[] = [
   {
     id: "criteriaImpact",
     article: 3,
-    letters: "d",
     kinds: INCIDENT,
     title: "Betroffene Kunden, Gegenparteien, Transaktionen und Reputation",
     summary: (f) =>
@@ -533,7 +510,6 @@ const STEPS: StepDef[] = [
   {
     id: "criteriaDurationGeo",
     article: 3,
-    letters: "d",
     kinds: INCIDENT,
     title: "Dauer, Ausfallzeit und Auswirkungen in den Mitgliedstaaten",
     summary: (f) =>
@@ -547,7 +523,6 @@ const STEPS: StepDef[] = [
   {
     id: "criteriaDataCritical",
     article: 3,
-    letters: "d",
     kinds: INCIDENT,
     title: "Datenverluste und betroffene kritische Dienste",
     summary: (f) =>
@@ -560,7 +535,6 @@ const STEPS: StepDef[] = [
   {
     id: "nature",
     article: 3,
-    letters: "e, f",
     kinds: INCIDENT,
     title: "Art des Vorfalls und Vorgehen des Angreifers",
     summary: (f) => labelsOf(INCIDENT_TYPES, f.incidentTypes).join(", "),
@@ -574,7 +548,6 @@ const STEPS: StepDef[] = [
   {
     id: "affected",
     article: 3,
-    letters: "g–i",
     kinds: INCIDENT,
     title: "Funktionsbereiche, Infrastruktur und Kundeninteressen",
     summary: (f) =>
@@ -591,7 +564,6 @@ const STEPS: StepDef[] = [
   {
     id: "authoritiesMeasures",
     article: 3,
-    letters: "j–l",
     kinds: INCIDENT,
     title: "Andere Behörden, befristete Maßnahmen und Indikatoren",
     summary: (f) =>
@@ -610,7 +582,6 @@ const STEPS: StepDef[] = [
   {
     id: "causes",
     article: 4,
-    letters: "a",
     kinds: INCIDENT,
     title: "Ursachen des Vorfalls",
     summary: (f) =>
@@ -623,7 +594,6 @@ const STEPS: StepDef[] = [
   {
     id: "resolution",
     article: 4,
-    letters: "b, c",
     kinds: INCIDENT,
     title: "Behebung des Vorfalls",
     summary: (f) =>
@@ -640,7 +610,6 @@ const STEPS: StepDef[] = [
   {
     id: "resolutionAuthorities",
     article: 4,
-    letters: "d",
     kinds: INCIDENT,
     title: "Für die Abwicklungsbehörden relevante Informationen",
     summary: (f) =>
@@ -655,7 +624,6 @@ const STEPS: StepDef[] = [
   {
     id: "costs",
     article: 4,
-    letters: "e",
     kinds: INCIDENT,
     title: "Kosten, Verluste und finanzielle Wiedereinziehungen",
     summary: (f) =>
@@ -667,7 +635,6 @@ const STEPS: StepDef[] = [
   {
     id: "recurring",
     article: 4,
-    letters: "f",
     kinds: INCIDENT,
     title: "Wiederholte Vorfälle",
     summary: (f) =>
@@ -685,7 +652,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatTiming",
     article: 6,
-    letters: "b",
     kinds: THREAT,
     title: "Erkennung der Cyberbedrohung",
     summary: (f) =>
@@ -695,7 +661,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatDescription",
     article: 6,
-    letters: "c, j",
     kinds: THREAT,
     title: "Beschreibung der Cyberbedrohung",
     summary: (f) => f.description.trim(),
@@ -704,7 +669,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatImpact",
     article: 6,
-    letters: "d",
     kinds: THREAT,
     title: "Mögliche Auswirkungen",
     summary: (f) => f.potentialImpact.trim(),
@@ -713,7 +677,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatCriteria",
     article: 6,
-    letters: "e",
     kinds: THREAT,
     title: "Kriterien, die eine Meldepflicht ausgelöst hätten",
     summary: (f) =>
@@ -723,7 +686,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatStatus",
     article: 6,
-    letters: "f, g",
     kinds: THREAT,
     title: "Status der Bedrohung und ergriffene Maßnahmen",
     summary: (f) =>
@@ -740,7 +702,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatNotifications",
     article: 6,
-    letters: "h",
     kinds: THREAT,
     title: "Benachrichtigte Behörden und Finanzunternehmen",
     summary: (f) =>
@@ -756,7 +717,6 @@ const STEPS: StepDef[] = [
   {
     id: "threatIndicators",
     article: 6,
-    letters: "i",
     kinds: THREAT,
     title: "Kompromittierungsindikatoren",
     summary: (f) => (f.indicatorsOfCompromise.trim() ? "erfasst" : ""),
@@ -1111,9 +1071,6 @@ export default function ReportPage() {
                   )}
                 >
                   {k.label}
-                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                    {k.article}
-                  </span>
                 </button>
               ))}
             </div>
@@ -1122,7 +1079,7 @@ export default function ReportPage() {
               <>
                 <div className="space-y-2">
                   <Label>
-                    <Source value={fieldRef(1, "a")} /> Art der Übermittlung
+                    Art der Übermittlung
                   </Label>
                   <div className="grid gap-2 sm:grid-cols-3">
                     {REPORT_TYPES.map((t) => (
@@ -1144,7 +1101,6 @@ export default function ReportPage() {
                 </div>
                 {isFollowUp(form.reportType) && (
                   <Field
-                    source={fieldRef(3, "a")}
                     label="Von der zuständigen Behörde mitgeteilter Referenzcode"
                     htmlFor="authorityReferenceCode"
                   >
@@ -1167,7 +1123,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(1, "b")}
                 label="Name des Finanzunternehmens"
                 htmlFor="entityName"
               >
@@ -1178,7 +1133,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "b")}
                 label="LEI-Code des Finanzunternehmens"
                 htmlFor="entityLei"
               >
@@ -1211,7 +1165,7 @@ export default function ReportPage() {
 
             <div className="space-y-2">
               <Label htmlFor="entityType">
-                <Source value={fieldRef(1, "b")} /> Art des Finanzunternehmens
+                Art des Finanzunternehmens
               </Label>
               <Select
                 items={ENTITY_TYPE_ITEMS}
@@ -1235,7 +1189,6 @@ export default function ReportPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(1, "c")}
                 label="Name des übermittelnden Unternehmens"
                 htmlFor="submittingEntityName"
               >
@@ -1248,7 +1201,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "c")}
                 label="Identifikationscode des übermittelnden Unternehmens"
                 htmlFor="submittingEntityCode"
               >
@@ -1265,7 +1217,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "d")}
                 label="Weitere Finanzunternehmen einer aggregierten Meldung"
                 htmlFor="aggregatedEntityNames"
               >
@@ -1278,7 +1229,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "d")}
                 label="Deren LEI-Codes"
                 htmlFor="aggregatedEntityLeis"
               >
@@ -1294,7 +1244,6 @@ export default function ReportPage() {
 
             <div className="grid gap-4 sm:grid-cols-3">
               <Field
-                source={fieldRef(1, "f")}
                 label="Mutterunternehmen der Gruppe"
                 htmlFor="groupParentName"
               >
@@ -1305,7 +1254,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "f")}
                 label="Dessen LEI-Code"
                 htmlFor="groupParentLei"
               >
@@ -1319,7 +1267,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "g")}
                 label="Währung monetärer Beträge"
                 htmlFor="reportingCurrency"
               >
@@ -1344,7 +1291,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field
-                source={fieldRef(1, "e")}
                 label="Name"
                 htmlFor="primaryContactName"
               >
@@ -1355,7 +1301,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "e")}
                 label="E-Mail-Adresse"
                 htmlFor="primaryContactEmail"
               >
@@ -1367,7 +1312,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "e")}
                 label="Telefonnummer"
                 htmlFor="primaryContactPhone"
               >
@@ -1382,7 +1326,6 @@ export default function ReportPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field
-                source={fieldRef(1, "e")}
                 label="Name der zweiten Person oder des Teams"
                 htmlFor="secondContactName"
               >
@@ -1393,7 +1336,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "e")}
                 label="E-Mail-Adresse"
                 htmlFor="secondContactEmail"
               >
@@ -1405,7 +1347,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(1, "e")}
                 label="Telefonnummer"
                 htmlFor="secondContactPhone"
               >
@@ -1443,7 +1384,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field
-                source={fieldRef(2, "a")}
                 label="Referenzcode des Vorfalls"
                 htmlFor="incidentReferenceCode"
               >
@@ -1457,7 +1397,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(2, "b")}
                 label="Erkennung des Vorfalls"
                 htmlFor="detectedAt"
               >
@@ -1469,7 +1408,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(2, "b")}
                 label="Einstufung als schwerwiegend"
                 htmlFor="classifiedAt"
               >
@@ -1484,7 +1422,6 @@ export default function ReportPage() {
             <DeadlineNote form={form} />
             {initialDeadlinePassed(form) && (
               <Field
-                source="Art. 5 Abs. 3"
                 label="Gründe für die verspätete Übermittlung"
                 htmlFor="delayReason"
               >
@@ -1503,7 +1440,6 @@ export default function ReportPage() {
         return (
           <>
             <Field
-              source={fieldRef(2, "c")}
               label="Beschreibung des IKT-bezogenen Vorfalls"
               htmlFor="description"
             >
@@ -1515,7 +1451,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(2, "j")}
               label="Sonstige zweckdienliche Informationen"
               htmlFor="additionalInformation"
             >
@@ -1536,7 +1471,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(2, "d")} /> Kriterien, auf deren
+                Kriterien, auf deren
                 Grundlage der Vorfall als schwerwiegend eingestuft wurde
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1553,7 +1488,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(2, "e")} /> Betroffene Mitgliedstaaten
+                Betroffene Mitgliedstaaten
               </Label>
               <div className="flex flex-wrap gap-2">
                 {MEMBER_STATES.map((s) => (
@@ -1578,7 +1513,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(2, "f")} /> Wie wurde der Vorfall
+                Wie wurde der Vorfall
                 erkannt?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1595,7 +1530,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(2, "g")} /> Ursprung des Vorfalls
+                Ursprung des Vorfalls
               </Label>
               <div className="flex flex-wrap gap-2">
                 {INCIDENT_ORIGINS.map((o) => (
@@ -1612,7 +1547,6 @@ export default function ReportPage() {
             {form.incidentOrigin !== null &&
               EXTERNAL_ORIGINS.includes(form.incidentOrigin) && (
                 <Field
-                  source={fieldRef(2, "g")}
                   label="Bezeichnung des Dritten"
                   htmlFor="originEntityDetails"
                 >
@@ -1627,7 +1561,6 @@ export default function ReportPage() {
                 </Field>
               )}
             <YesNo
-              source={fieldRef(2, "h")}
               question="Wurde ein Geschäftsfortführungsplan aktiviert?"
               value={form.businessContinuityActivated}
               onChange={(v) => update("businessContinuityActivated", v)}
@@ -1639,14 +1572,12 @@ export default function ReportPage() {
         return (
           <>
             <YesNo
-              source={fieldRef(2, "i")}
               question="Wird der Vorfall als nicht schwerwiegend neu eingestuft?"
               value={form.reclassifiedAsNonMajor}
               onChange={(v) => update("reclassifiedAsNonMajor", v)}
             />
             {form.reclassifiedAsNonMajor && (
               <Field
-                source={fieldRef(2, "i")}
                 label="Gründe der Neueinstufung"
                 htmlFor="reclassificationDetails"
               >
@@ -1667,7 +1598,6 @@ export default function ReportPage() {
         return (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              source={fieldRef(3, "b")}
               label="Eintreten des Vorfalls"
               htmlFor="occurredAt"
             >
@@ -1679,7 +1609,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(3, "c")}
               label="Wiederaufnahme des regulären Geschäftsbetriebs"
               htmlFor="regularOperationsResumedAt"
             >
@@ -1700,7 +1629,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Kunden (Anzahl)"
                 htmlFor="clientsAffected"
               >
@@ -1713,7 +1641,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Kunden (% der Dienstnutzer)"
                 htmlFor="clientsAffectedPercent"
               >
@@ -1729,7 +1656,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Gegenparteien (Anzahl)"
                 htmlFor="counterpartsAffected"
               >
@@ -1744,7 +1670,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Gegenparteien (%)"
                 htmlFor="counterpartsAffectedPercent"
               >
@@ -1760,7 +1685,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Transaktionen (Anzahl)"
                 htmlFor="transactionsAffected"
               >
@@ -1775,7 +1699,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Betroffene Transaktionen (%)"
                 htmlFor="transactionsAffectedPercent"
               >
@@ -1791,7 +1714,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label={`Wert der betroffenen Transaktionen (${form.reportingCurrency})`}
                 htmlFor="transactionsValue"
               >
@@ -1805,7 +1727,6 @@ export default function ReportPage() {
               </Field>
             </div>
             <Field
-              source={fieldRef(3, "d")}
               label="Auswirkungen auf relevante Kunden oder Gegenparteien"
               htmlFor="relevantClientsImpact"
             >
@@ -1818,7 +1739,7 @@ export default function ReportPage() {
             </Field>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "d")} /> Sind diese Werte ermittelt
+                Sind diese Werte ermittelt
                 oder geschätzt?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1835,7 +1756,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "d")} /> Reputationsschaden
+                Reputationsschaden
               </Label>
               <div className="flex flex-wrap gap-2">
                 {REPUTATION_CONDITIONS.map((c) => (
@@ -1850,7 +1771,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(3, "d")}
               label="Erläuterung des Reputationsschadens"
               htmlFor="reputationalImpactContext"
             >
@@ -1871,7 +1791,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(3, "d")}
                 label="Dauer des Vorfalls (Stunden)"
                 htmlFor="durationHours"
               >
@@ -1884,7 +1803,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(3, "d")}
                 label="Ausfallzeit des Dienstes (Stunden)"
                 htmlFor="downtimeHours"
               >
@@ -1899,7 +1817,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "d")} /> Sind Dauer und Ausfallzeit
+                Sind Dauer und Ausfallzeit
                 ermittelt oder geschätzt?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1921,7 +1839,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "d")} /> Bereiche, in denen sich der
+                Bereiche, in denen sich der
                 Vorfall in den Mitgliedstaaten auswirkt
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1937,7 +1855,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(3, "d")}
               label="Beschreibung der Auswirkungen je Mitgliedstaat"
               htmlFor="memberStateImpactDescription"
             >
@@ -1958,7 +1875,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "d")} /> Betroffene Schutzziele der
+                Betroffene Schutzziele der
                 Daten
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -1974,7 +1891,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(3, "d")}
               label="Beschreibung der Datenverluste"
               htmlFor="dataLossDescription"
             >
@@ -1986,7 +1902,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(3, "d")}
               label="Betroffene kritische Dienste"
               htmlFor="criticalServicesDescription"
             >
@@ -2007,7 +1922,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "e")} /> Art des IKT-bezogenen
+                Art des IKT-bezogenen
                 Vorfalls
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2024,7 +1939,6 @@ export default function ReportPage() {
             </div>
             {form.incidentTypes.includes("other") && (
               <Field
-                source={fieldRef(3, "e")}
                 label="Sonstige Art des Vorfalls"
                 htmlFor="incidentTypeOther"
               >
@@ -2037,7 +1951,7 @@ export default function ReportPage() {
             )}
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "f")} /> Vom Angreifer artikulierte
+                Vom Angreifer artikulierte
                 Bedrohungen und eingesetzte Techniken
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2054,7 +1968,6 @@ export default function ReportPage() {
             </div>
             {form.threatTechniques.includes("other") && (
               <Field
-                source={fieldRef(3, "f")}
                 label="Sonstige Technik"
                 htmlFor="threatTechniqueOther"
               >
@@ -2075,7 +1988,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "g")} /> Betroffene Funktionsbereiche
+                Betroffene Funktionsbereiche
               </Label>
               <div className="flex flex-wrap gap-2">
                 {FUNCTIONAL_AREAS.map((a) => (
@@ -2090,7 +2003,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(3, "g")}
               label="Betroffene Geschäftsprozesse"
               htmlFor="affectedProcesses"
             >
@@ -2103,7 +2015,7 @@ export default function ReportPage() {
             </Field>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(3, "h")} /> Sind Infrastrukturkomponenten
+                Sind Infrastrukturkomponenten
                 betroffen, die Geschäftsprozesse unterstützen?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2120,7 +2032,6 @@ export default function ReportPage() {
             </div>
             {form.infrastructureAffected === "yes" && (
               <Field
-                source={fieldRef(3, "h")}
                 label="Beschreibung der betroffenen Infrastrukturkomponenten"
                 htmlFor="infrastructureDescription"
               >
@@ -2135,7 +2046,6 @@ export default function ReportPage() {
               </Field>
             )}
             <YesNo
-              source={fieldRef(3, "i")}
               question="Wirkt sich der Vorfall auf die finanziellen Interessen von Kunden aus?"
               value={form.clientFinancialInterestAffected}
               onChange={(v) => update("clientFinancialInterestAffected", v)}
@@ -2147,19 +2057,16 @@ export default function ReportPage() {
         return (
           <>
             <AuthoritiesPicker
-              source={fieldRef(3, "j")}
               form={form}
               onToggle={(id) => toggle("notifiedAuthorities", id)}
               onOther={(v) => update("notifiedAuthoritiesOther", v)}
             />
             <YesNo
-              source={fieldRef(3, "k")}
               question="Wurden befristete Maßnahmen ergriffen oder sind sie geplant?"
               value={form.temporaryMeasuresTaken}
               onChange={(v) => update("temporaryMeasuresTaken", v)}
             />
             <Field
-              source={fieldRef(3, "k")}
               label="Beschreibung der befristeten Maßnahmen"
               htmlFor="temporaryMeasuresDescription"
             >
@@ -2173,7 +2080,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(3, "l")}
               label="Kompromittierungsindikatoren"
               htmlFor="indicatorsOfCompromise"
             >
@@ -2194,7 +2100,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(4, "a")} /> Übergeordnete Einstufung der
+                Übergeordnete Einstufung der
                 Ursachen
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2218,7 +2124,7 @@ export default function ReportPage() {
                 className="space-y-3 rounded-lg border border-border/60 bg-background/60 p-3"
               >
                 <Label>
-                  <Source value={fieldRef(4, "a")} /> Detaillierte Ursachen –{" "}
+                  Detaillierte Ursachen –{" "}
                   {category.label}
                 </Label>
                 <div className="flex flex-wrap gap-2">
@@ -2248,7 +2154,7 @@ export default function ReportPage() {
                     return (
                       <div key={detailId} className="space-y-2 pl-3">
                         <Label>
-                          <Source value={fieldRef(4, "a")} /> Weitergehende
+                          Weitergehende
                           Einstufung – {detail.label}
                         </Label>
                         <div className="flex flex-wrap gap-2">
@@ -2277,7 +2183,6 @@ export default function ReportPage() {
 
             {form.rootCauseDetails.some((id) => id.endsWith(".other")) && (
               <Field
-                source={fieldRef(4, "a")}
                 label="Sonstige Art der Ursache"
                 htmlFor="rootCauseOther"
               >
@@ -2290,7 +2195,6 @@ export default function ReportPage() {
             )}
 
             <Field
-              source={fieldRef(4, "a")}
               label="Angaben zu den Ursachen des Vorfalls"
               htmlFor="rootCauseDescription"
             >
@@ -2309,7 +2213,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(4, "b")}
                 label="Behebung des Vorfalls"
                 htmlFor="incidentResolvedAt"
               >
@@ -2321,7 +2224,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(4, "b")}
                 label="Beseitigung der zugrunde liegenden Ursache"
                 htmlFor="rootCauseAddressedAt"
               >
@@ -2336,7 +2238,6 @@ export default function ReportPage() {
               </Field>
             </div>
             <Field
-              source={fieldRef(4, "c")}
               label="Angaben dazu, wie dem Vorfall entgegengewirkt wurde"
               htmlFor="counterMeasures"
             >
@@ -2355,7 +2256,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(4, "d")} /> Stellt der Vorfall ein Risiko
+                Stellt der Vorfall ein Risiko
                 für kritische Funktionen dar?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2371,7 +2272,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(4, "d")}
               label="Für die Abwicklungsbehörden relevante Informationen"
               htmlFor="resolutionAuthorityInformation"
             >
@@ -2392,7 +2292,6 @@ export default function ReportPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                source={fieldRef(4, "e")}
                 label={`Direkte und indirekte Kosten und Verluste (${form.reportingCurrency})`}
                 htmlFor="grossCostsAndLosses"
               >
@@ -2405,7 +2304,6 @@ export default function ReportPage() {
                 />
               </Field>
               <Field
-                source={fieldRef(4, "e")}
                 label={`Finanzielle Wiedereinziehungen (${form.reportingCurrency})`}
                 htmlFor="financialRecoveries"
               >
@@ -2419,7 +2317,6 @@ export default function ReportPage() {
               </Field>
             </div>
             <Field
-              source={fieldRef(4, "e")}
               label="Erläuterung der Kosten und Verluste"
               htmlFor="economicImpactDescription"
             >
@@ -2439,7 +2336,6 @@ export default function ReportPage() {
         return (
           <>
             <YesNo
-              source={fieldRef(4, "f")}
               question="Haben sich nicht schwerwiegende Vorfälle wiederholt und sind zusammen als schwerwiegender Vorfall zu betrachten?"
               value={form.recurringIncidents}
               onChange={(v) => update("recurringIncidents", v)}
@@ -2447,7 +2343,6 @@ export default function ReportPage() {
             {form.recurringIncidents && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
-                  source={fieldRef(4, "f")}
                   label="Anzahl der wiederholten Vorfälle"
                   htmlFor="recurringIncidentCount"
                 >
@@ -2462,7 +2357,6 @@ export default function ReportPage() {
                   />
                 </Field>
                 <Field
-                  source={fieldRef(4, "f")}
                   label="Eintreten des ersten Vorfalls"
                   htmlFor="firstRecurringIncidentAt"
                 >
@@ -2486,7 +2380,6 @@ export default function ReportPage() {
         return (
           <>
             <Field
-              source={fieldRef(6, "b")}
               label="Erkennung der erheblichen Cyberbedrohung"
               htmlFor="detectedAt"
             >
@@ -2498,7 +2391,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(6, "b")}
               label="Sonstige relevante Zeitstempel"
               htmlFor="relevantTimestamps"
             >
@@ -2516,7 +2408,6 @@ export default function ReportPage() {
         return (
           <>
             <Field
-              source={fieldRef(6, "c")}
               label="Beschreibung der erheblichen Cyberbedrohung"
               htmlFor="description"
             >
@@ -2528,7 +2419,6 @@ export default function ReportPage() {
               />
             </Field>
             <Field
-              source={fieldRef(6, "j")}
               label="Sonstige zweckdienliche Informationen"
               htmlFor="additionalInformation"
             >
@@ -2547,7 +2437,6 @@ export default function ReportPage() {
       case "threatImpact":
         return (
           <Field
-            source={fieldRef(6, "d")}
             label="Mögliche Auswirkungen der Cyberbedrohung"
             htmlFor="potentialImpact"
           >
@@ -2564,7 +2453,7 @@ export default function ReportPage() {
         return (
           <div className="space-y-2">
             <Label>
-              <Source value={fieldRef(6, "e")} /> Kriterien, die die Meldung
+              Kriterien, die die Meldung
               eines schwerwiegenden Vorfalls ausgelöst hätten
             </Label>
             <div className="flex flex-wrap gap-2">
@@ -2586,7 +2475,7 @@ export default function ReportPage() {
           <>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(6, "f")} /> Status der Cyberbedrohung
+                Status der Cyberbedrohung
               </Label>
               <div className="flex flex-wrap gap-2">
                 {THREAT_STATUSES.map((s) => (
@@ -2602,7 +2491,7 @@ export default function ReportPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                <Source value={fieldRef(6, "f")} /> Hat sich die
+                Hat sich die
                 Bedrohungsaktivität verändert?
               </Label>
               <div className="flex flex-wrap gap-2">
@@ -2618,7 +2507,6 @@ export default function ReportPage() {
               </div>
             </div>
             <Field
-              source={fieldRef(6, "g")}
               label="Maßnahmen zur Verhinderung des Eintretens"
               htmlFor="preventiveMeasures"
             >
@@ -2636,13 +2524,11 @@ export default function ReportPage() {
         return (
           <>
             <AuthoritiesPicker
-              source={fieldRef(6, "h")}
               form={form}
               onToggle={(id) => toggle("notifiedAuthorities", id)}
               onOther={(v) => update("notifiedAuthoritiesOther", v)}
             />
             <Field
-              source={fieldRef(6, "h")}
               label="Benachrichtigte andere Finanzunternehmen"
               htmlFor="notifiedFinancialEntities"
             >
@@ -2661,7 +2547,6 @@ export default function ReportPage() {
       case "threatIndicators":
         return (
           <Field
-            source={fieldRef(6, "i")}
             label="Kompromittierungsindikatoren"
             htmlFor="indicatorsOfCompromise"
           >
@@ -2715,11 +2600,7 @@ export default function ReportPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <PageHeader
-        step="Schritt 03"
-        title="Meldung an die BaFin"
-        desc="Inhalt nach der Delegierten Verordnung (EU) 2025/301."
-      />
+      <PageHeader step="Schritt 03" title="Meldung an die BaFin" />
 
       {/* Besteht überhaupt eine Meldepflicht? */}
       <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card/70 p-5 backdrop-blur">
@@ -2754,11 +2635,6 @@ export default function ReportPage() {
                 }
                 status={status}
                 title={step.title}
-                article={
-                  step.sourceFor
-                    ? step.sourceFor(kind)
-                    : fieldRef(step.article, step.letters)
-                }
                 open={open}
                 summary={step.summary(form) || "Noch keine Angaben"}
                 isLast={isLast}
@@ -2827,7 +2703,7 @@ export default function ReportPage() {
           </div>
           {blocked && (
             <p className="text-right text-xs text-muted-foreground">
-              Ohne Meldepflicht nur als Neueinstufung (Art. 2 Buchst. i).
+              Ohne Meldepflicht nur als Neueinstufung.
             </p>
           )}
         </div>
@@ -2840,20 +2716,11 @@ export default function ReportPage() {
  * Bausteine
  * ------------------------------------------------------------------------- */
 
-/** Fundstelle der Angabe im RTS, vor der Beschriftung. */
-function Source({ value }: { value: string }) {
-  return (
-    <span className="text-xs font-normal text-muted-foreground">{value}</span>
-  );
-}
-
 function Field({
-  source,
   label,
   htmlFor,
   children,
 }: {
-  source: string;
   label: string;
   htmlFor: string;
   children: React.ReactNode;
@@ -2861,7 +2728,7 @@ function Field({
   return (
     <div className="space-y-2">
       <Label htmlFor={htmlFor}>
-        <Source value={source} /> {label}
+        {label}
       </Label>
       {children}
     </div>
@@ -2895,12 +2762,10 @@ function DeadlineNote({ form }: { form: ReportForm }) {
 
 /** Behörden nach Art. 3 Buchst. j bzw. Art. 6 Buchst. h. */
 function AuthoritiesPicker({
-  source,
   form,
   onToggle,
   onOther,
 }: {
-  source: string;
   form: ReportForm;
   onToggle: (id: ReportForm["notifiedAuthorities"][number]) => void;
   onOther: (value: string) => void;
@@ -2909,7 +2774,7 @@ function AuthoritiesPicker({
     <>
       <div className="space-y-2">
         <Label>
-          <Source value={source} /> Welche Behörden wurden informiert?
+          Welche Behörden wurden informiert?
         </Label>
         <div className="flex flex-wrap gap-2">
           {NOTIFIED_AUTHORITIES.map((a) => (
@@ -2925,7 +2790,6 @@ function AuthoritiesPicker({
       </div>
       {form.notifiedAuthorities.includes("other") && (
         <Field
-          source={source}
           label="Welche weitere Behörde?"
           htmlFor="notifiedAuthoritiesOther"
         >
@@ -2967,12 +2831,10 @@ function TogglePill({
 }
 
 function YesNo({
-  source,
   question,
   value,
   onChange,
 }: {
-  source: string;
   question: string;
   value: boolean;
   onChange: (value: boolean) => void;
@@ -2980,7 +2842,7 @@ function YesNo({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">
-        <Source value={source} /> {question}
+        {question}
       </p>
       <div className="flex gap-2 sm:max-w-sm">
         <ChoiceButton selected={value} onClick={() => onChange(true)}>
@@ -3053,10 +2915,7 @@ function CheckList({ checks }: { checks: ReportCheck[] }) {
             ) : (
               <Info className="mt-0.5 size-3.5 shrink-0 text-warning" />
             )}
-            <span className="text-muted-foreground">
-              <span className="font-medium text-foreground">{check.field}</span>{" "}
-              {check.message}
-            </span>
+            <span className="text-muted-foreground">{check.message}</span>
           </li>
         ))}
       </ul>

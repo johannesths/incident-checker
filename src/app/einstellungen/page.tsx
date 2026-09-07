@@ -16,6 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,6 +38,12 @@ import {
   saveCompanyProfile,
   useCompanyProfile,
 } from "@/lib/company/store";
+
+/** Die Kategorien des Art. 2 Abs. 1 DORA als Auswahlliste. */
+const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
+  value: t.id,
+  label: t.label,
+}));
 
 const LEI_PATTERN = /^[A-Z0-9]{20}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
@@ -186,22 +199,25 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
           </div>
 
           <div className="space-y-2">
-            <Label>Art des Finanzunternehmens</Label>
-            <div className="flex flex-wrap gap-2">
-              {ENTITY_TYPES.map((type) => (
-                <ChoicePill
-                  key={type.id}
-                  active={form.entityType === type.id}
-                  onClick={() => update("entityType", type.id)}
-                >
-                  {type.label}
-                </ChoicePill>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Kategorie nach Art. 2 Abs. 1 Buchst. a–t DORA – Feld 1.4 des
-              Meldeformulars lässt nur diese Kategorien zu.
-            </p>
+            <Label htmlFor="entityType">Art des Finanzunternehmens</Label>
+            <Select
+              items={ENTITY_TYPE_ITEMS}
+              value={form.entityType}
+              onValueChange={(value) =>
+                update("entityType", value as CompanyProfile["entityType"])
+              }
+            >
+              <SelectTrigger id="entityType" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENTITY_TYPES.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -284,7 +300,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
         <Section
           icon={UserRound}
           title="Ansprechpartner für die Aufsicht"
-          desc="Kontakte für Rückfragen zu gemeldeten Vorfällen (Felder 1.7–1.12 des Meldeformulars); werden in jede Meldung übernommen."
+          desc="Kontakte für Rückfragen zu gemeldeten Vorfällen; werden in jede Meldung übernommen."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name" htmlFor="contactName">
@@ -331,8 +347,8 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
 
           <div className="space-y-4 border-t border-border/60 pt-5">
             <p className="text-xs font-medium">
-              Zweite Kontaktperson (Feld 1.10) – zulässig ist auch ein
-              verantwortliches Team mit funktionaler Adresse.
+              Zweite Kontaktperson – zulässig ist auch ein verantwortliches
+              Team mit funktionaler Adresse.
             </p>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Name" htmlFor="secondContactName">
@@ -370,7 +386,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
         <Section
           icon={Network}
           title="Gruppe, Berichtswährung und Fristen"
-          desc="Angaben zur Konzernzugehörigkeit und zur Währung der Meldung (Art. 1 Buchst. f und g des RTS) sowie die Einstufung, die über die Fristenregelung des Art. 5 entscheidet."
+          desc="Konzernzugehörigkeit, Währung der Meldung und die Einstufung, die über die Fristenregelung entscheidet."
         >
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
@@ -435,10 +451,9 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
             </div>
             <p className="text-xs text-muted-foreground">
               Für Kreditinstitute, zentrale Gegenparteien, Betreiber von
-              Handelsplätzen und nach Art. 3 der NIS-2-Richtlinie als wesentlich
-              oder wichtig eingestufte Unternehmen verlängert ein Wochenende die
-              Frist für Erst- und Zwischenmeldungen nicht (Art. 5 Abs. 4 und 5
-              des RTS).
+              Handelsplätzen und als wesentlich oder wichtig eingestufte
+              Unternehmen verlängert ein Wochenende die Frist für Erst- und
+              Zwischenmeldungen nicht.
             </p>
           </div>
         </Section>
@@ -453,7 +468,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               label="Kunden insgesamt"
               htmlFor="totalClients"
               error={errors.totalClients}
-              hint="Bezugsgröße für die absolute Kundenschwelle (Art. 9 Abs. 1 Buchst. b RTS)."
+              hint="Bezugsgröße für die absolute Kundenschwelle."
             >
               <Input
                 id="totalClients"
@@ -468,7 +483,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               label="Mitgliedstaaten mit Geschäftstätigkeit"
               htmlFor="memberStatesOfOperation"
               error={errors.memberStatesOfOperation}
-              hint="Anhaltspunkt für die geografische Ausbreitung (Art. 4 RTS)."
+              hint="Anhaltspunkt für die geografische Ausbreitung."
             >
               <Input
                 id="memberStatesOfOperation"
@@ -485,7 +500,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               label="Ø Transaktionen pro Tag (Anzahl)"
               htmlFor="dailyTransactionsCount"
               error={errors.dailyTransactionsCount}
-              hint="Bezugsgröße für Art. 9 Abs. 1 Buchst. d RTS."
+              hint="Bezugsgröße für den Anteil der betroffenen Transaktionen."
             >
               <Input
                 id="dailyTransactionsCount"
@@ -502,7 +517,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
               label="Ø Transaktionswert pro Tag (EUR)"
               htmlFor="dailyTransactionsValueEur"
               error={errors.dailyTransactionsValueEur}
-              hint="Bezugsgröße für Art. 9 Abs. 1 Buchst. e RTS."
+              hint="Bezugsgröße für den Anteil des betroffenen Transaktionswerts."
             >
               <Input
                 id="dailyTransactionsValueEur"

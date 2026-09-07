@@ -74,7 +74,7 @@ export default function ReportConfirmationPage() {
       <PageHeader
         step="Schritt 03 · Bestätigung"
         title="Meldung erfasst"
-        desc="Quittung der Übermittlung an die zuständige Behörde. Folgemeldungen führen denselben Referenzcode des Vorfalls (Art. 2 Buchst. a) und den Referenzcode der Behörde (Art. 3 Buchst. a)."
+        desc="Quittung der Übermittlung an die zuständige Behörde."
       />
 
       <Card className="relative overflow-hidden border-border/60 bg-card/80 backdrop-blur">

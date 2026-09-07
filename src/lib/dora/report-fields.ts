@@ -22,21 +22,13 @@
  * Fundstellen
  * ------------------------------------------------------------------------- */
 
-/** Artikel der Delegierten Verordnung, die Meldeinhalte festlegen. */
+/**
+ * Artikel der Delegierten Verordnung, die Meldeinhalte festlegen: Art. 1
+ * allgemeine Informationen, Art. 2 Erstmeldung, Art. 3 Zwischenmeldung,
+ * Art. 4 Abschlussmeldung, Art. 6 freiwillige Meldung erheblicher
+ * Cyberbedrohungen.
+ */
 export type ContentArticle = 1 | 2 | 3 | 4 | 6;
-
-export const CONTENT_ARTICLES: Record<ContentArticle, { title: string }> = {
-  1: { title: "Allgemeine Informationen" },
-  2: { title: "Erstmeldung" },
-  3: { title: "Zwischenmeldung" },
-  4: { title: "Abschlussmeldung" },
-  6: { title: "Freiwillige Meldung erheblicher Cyberbedrohungen" },
-};
-
-/** Fundstelle einer Angabe, z. B. "Art. 2 Buchst. a–c". */
-export function fieldRef(article: ContentArticle, letters: string): string {
-  return `Art. ${article} Buchst. ${letters}`;
-}
 
 /* ---------------------------------------------------------------------------
  * Art. 2 Buchst. f – Wie wurde der Vorfall erkannt?

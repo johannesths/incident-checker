@@ -172,17 +172,17 @@ export function initialReportDeadline(
   if (classifiedAt.getTime() > afterDetection.getTime()) {
     return {
       dueAt: afterClassification,
-      basis: `Art. 5 Abs. 2 – ${HOURS_AFTER_CLASSIFICATION} Stunden nach der Einstufung, da diese später als ${HOURS_AFTER_DETECTION} Stunden nach der Kenntniserlangung erfolgt ist`,
+      basis: `${HOURS_AFTER_CLASSIFICATION} Stunden nach der Einstufung, da diese später als ${HOURS_AFTER_DETECTION} Stunden nach der Kenntniserlangung erfolgt ist`,
     };
   }
   return afterClassification <= afterDetection
     ? {
         dueAt: afterClassification,
-        basis: `Art. 5 Abs. 1 Buchst. a – ${HOURS_AFTER_CLASSIFICATION} Stunden nach der Einstufung als schwerwiegend`,
+        basis: `${HOURS_AFTER_CLASSIFICATION} Stunden nach der Einstufung als schwerwiegend`,
       }
     : {
         dueAt: afterDetection,
-        basis: `Art. 5 Abs. 1 Buchst. a – ${HOURS_AFTER_DETECTION} Stunden nach der Kenntniserlangung`,
+        basis: `${HOURS_AFTER_DETECTION} Stunden nach der Kenntniserlangung`,
       };
 }
 
@@ -203,8 +203,7 @@ export function extendOverWeekend(dueAt: Date): Deadline | null {
   next.setHours(12, 0, 0, 0);
   return {
     dueAt: next,
-    basis:
-      "Art. 5 Abs. 4 – 12.00 Uhr des auf das Wochenende folgenden Arbeitstages",
+    basis: "12.00 Uhr des auf das Wochenende folgenden Arbeitstages",
   };
 }
 
