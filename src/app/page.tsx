@@ -6,7 +6,6 @@ import {
   ShieldQuestion,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { CompanyProfileCard } from "@/components/company-profile-card";
 
 const STEPS = [
   {
@@ -14,24 +13,27 @@ const STEPS = [
     step: "01",
     icon: ShieldQuestion,
     title: "Triage",
-    desc: "Liegt überhaupt ein IKT-bezogener Vorfall vor, oder handelt es sich um ein reguläres Support-Anliegen? Sie beschreiben das Ereignis und erhalten eine Einschätzung samt Empfehlung zum weiteren Vorgehen – etwa, dass der ServiceDesk zuständig ist.",
-    tone: "bg-[var(--tone-orange-500)]",
+    desc: "Einschätzung eines Vorfalls als IKT-bezogen oder reguläres Support-Anliegen.",
+    tone: "bg-[var(--tone-orange-300)]",
+    openText: "Einschätzung erhalten"
   },
   {
     href: "/severity",
     step: "02",
     icon: ListChecks,
     title: "Schweregrad (DORA)",
-    desc: "Einstufung eines bestätigten Vorfalls als schwerwiegend anhand der DORA-Klassifizierungskriterien – je Einzelkriterium transparent aufgeschlüsselt, ob die Materialitätsschwelle erreicht ist.",
+    desc: "Einstufung eines bestätigten Vorfalls als schwerwiegend anhand der DORA-Klassifizierungskriterien.",
     tone: "bg-[var(--tone-orange-400)]",
+    openText: "Schweregrad bestimmen"
   },
   {
     href: "/meldung",
     step: "03",
     icon: SendHorizonal,
     title: "Meldung (BaFin)",
-    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA). Aus der Einstufung entsteht die Meldung nach dem amtlichen Formular – Erst-, Zwischen- oder Abschlussmeldung samt Fristen.",
-    tone: "bg-[var(--tone-orange-300)]",
+    desc: "Ist der Vorfall schwerwiegend, ist er der Aufsicht zu melden (Art. 19 DORA).",
+    tone: "bg-[var(--tone-orange-500)]",
+    openText: "Meldung vorbereiten"
   },
 ];
 
@@ -41,25 +43,22 @@ export default function Home() {
       {/* Hero */}
       <section className="space-y-6 pt-6 text-center">
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-          Identifizierung und Klassifizierung von{" "}
-          <span className="bg-linear-to-r from-[var(--tone-orange-500)] to-[var(--tone-orange-400)] bg-clip-text text-transparent">
+          Identifizierung, Klassifizierung und Meldung von{" "}
+          <span className="text-(--tone-orange-500)">
             IKT-bezogenen Vorfällen
           </span>
         </h1>
         <p className="mx-auto max-w-2xl text-pretty text-muted-foreground sm:text-lg">
-          Diese Anwendung unterstützt Finanzunternehmen dabei, mögliche
+          Erhalten Sie Unterstüzung dabei, mögliche
           IKT-bezogene Vorfälle nach den Vorgaben der EU-Verordnung DORA
           einzuordnen: Erfassen Sie ein Ereignis, prüfen Sie die Zuständigkeit,
-          bestimmen Sie den Schweregrad und melden Sie den Vorfall
+          bestimmen Sie den Schweregrad und melden Sie den Vorfall.
         </p>
       </section>
 
-      {/* Unternehmen, für das die Anwendung eingerichtet ist */}
-      <CompanyProfileCard />
-
       {/* Schritte */}
       <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {STEPS.map(({ href, step, icon: Icon, title, desc, tone }) => (
+        {STEPS.map(({ href, step, icon: Icon, title, desc, tone, openText }) => (
           <Link key={href} href={href} className="group">
             <Card className="relative h-full overflow-hidden border-border/60 bg-card/70 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5">
               <CardContent className="flex h-full flex-col gap-4 p-6">
@@ -78,7 +77,7 @@ export default function Home() {
                   <p className="text-sm text-muted-foreground">{desc}</p>
                 </div>
                 <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-primary">
-                  Öffnen
+                  {openText}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                 </span>
               </CardContent>

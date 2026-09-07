@@ -45,7 +45,7 @@ export function StepRow({
       {!isLast && (
         <span
           aria-hidden
-          className="absolute -bottom-3 left-[19px] top-11 w-px bg-border/70"
+          className="absolute -bottom-3 left-4.75 top-11 w-px bg-border/70"
         />
       )}
       <span

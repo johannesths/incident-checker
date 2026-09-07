@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldHalf, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DEMO_COMPANY_PROFILE } from "../lib/company/profile";
 
 const NAV = [
   { href: "/triage", label: "Triage" },
@@ -28,7 +29,7 @@ export function SiteHeader() {
         <Link href="/" className="group flex items-center gap-2.5">
           <ShieldHalf className="size-6 text-primary" />
           <span className="text-base font-semibold tracking-tight">
-            IndIncident
+            Threatly
           </span>
         </Link>
 
@@ -46,7 +47,7 @@ export function SiteHeader() {
           <NavLink
             href={SETTINGS_HREF}
             pathname={pathname}
-            label="Einstellungen"
+            label={DEMO_COMPANY_PROFILE.name}
             icon={<SlidersHorizontal className="size-4" />}
           />
         </nav>
