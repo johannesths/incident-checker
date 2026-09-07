@@ -364,18 +364,19 @@ export const reportInputSchema = generalInformationSchema.extend({
 
   /* --- Art. 2: Erstmeldung ------------------------------------------------ */
 
+  /*
+   * Die Angaben des Art. 2 verlangt nur die Erstmeldung. Das Schema prüft
+   * daher lediglich das Format; ob sie vorliegen müssen, entscheidet die Art
+   * der Übermittlung – siehe checkReport in @/lib/dora/report-checks.
+   */
   /** Buchst. a: vom Finanzunternehmen zugewiesener Referenzcode des Vorfalls. */
-  incidentReferenceCode: z
-    .string()
-    .min(1, "Bitte geben Sie den Referenzcode des Vorfalls an."),
+  incidentReferenceCode: optionalText,
   /** Buchst. b: Datum und Uhrzeit der Erkennung des Vorfalls. */
-  detectedAt: requiredDateTime,
+  detectedAt: optionalDateTime,
   /** Buchst. b: Datum und Uhrzeit der Einstufung (Art. 8 DelVO (EU) 2024/1772). */
-  classifiedAt: requiredDateTime,
+  classifiedAt: optionalDateTime,
   /** Buchst. c: Beschreibung des IKT-bezogenen Vorfalls. */
-  description: z
-    .string()
-    .min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
+  description: optionalText,
   /** Buchst. d: Kriterien, auf deren Grundlage als schwerwiegend eingestuft wurde. */
   classificationCriteria: z.array(z.enum(criterionIds)).optional().default([]),
   /** Buchst. e: Mitgliedstaaten, die von dem Vorfall betroffen sind. */

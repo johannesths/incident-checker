@@ -167,6 +167,43 @@ const finalAdditions = {
 const intermediateReport = { ...initialReport, ...intermediateAdditions };
 const finalReport = { ...intermediateReport, ...finalAdditions };
 
+/**
+ * Die Meldungen sind nicht kumulativ: Art. 2 gilt nur für die Erstmeldung,
+ * Art. 3 nur für die Zwischenmeldung. Diese Überschreibungen leeren die
+ * Angaben des jeweiligen Artikels.
+ */
+const withoutArticle2 = {
+  incidentReferenceCode: "",
+  detectedAt: "",
+  classifiedAt: "",
+  description: "",
+  classificationCriteria: [],
+  affectedMemberStates: [],
+  detectionSource: null,
+  incidentOrigin: null,
+  originEntityDetails: "",
+  businessContinuityActivated: false,
+};
+
+const withoutArticle3 = {
+  occurredAt: "",
+  regularOperationsResumedAt: "",
+  clientsAffected: "",
+  durationHours: "",
+  downtimeHours: "",
+  durationBasis: null,
+  figuresBasis: null,
+  criticalServicesDescription: "",
+  incidentTypes: [],
+  functionalAreas: [],
+  affectedProcesses: "",
+  infrastructureAffected: null,
+  infrastructureDescription: "",
+  notifiedAuthorities: [],
+  temporaryMeasuresTaken: false,
+  temporaryMeasuresDescription: "",
+};
+
 /** Freiwillige Meldung einer erheblichen Cyberbedrohung (Art. 6). */
 const cyberThreat = {
   kind: "cyber_threat",
@@ -473,6 +510,49 @@ const CASES = [
         want: "abgelehnt – Art. 4 Buchst. f verlangt ihn",
         report: { ...finalReport, recurringIncidents: true },
         check: (r) => r.checks.includes("recurring_without_date"),
+      },
+    ],
+  },
+  {
+    group: "Meldungen sind nicht kumulativ (Art. 1 bis 4)",
+    cases: [
+      {
+        id: "Abschlussmeldung ohne die Angaben der Erst- und Zwischenmeldung",
+        want: "angenommen – Art. 4 verlangt sie nicht",
+        report: { ...finalReport, ...withoutArticle2, ...withoutArticle3 },
+        check: (r) => r.status === 200,
+      },
+      {
+        id: "Zwischenmeldung ohne die Angaben der Erstmeldung",
+        want: "angenommen – Art. 3 verlangt sie nicht",
+        report: { ...intermediateReport, ...withoutArticle2 },
+        check: (r) => r.status === 200,
+      },
+      {
+        id: "Abschlussmeldung ohne Einstufungskriterien",
+        want: "angenommen – die Kriterien nennt die Erstmeldung",
+        report: { ...finalReport, ...withoutArticle2 },
+        check: (r) => r.status === 200,
+      },
+      {
+        id: "Erstmeldung ohne Referenzcode",
+        want: "abgelehnt – Art. 2 Buchst. a verlangt ihn",
+        report: { ...initialReport, incidentReferenceCode: "" },
+        check: (r) => r.checks.includes("missing_incident_reference"),
+      },
+      {
+        id: "Erstmeldung ohne Beschreibung",
+        want: "abgelehnt – Art. 2 Buchst. c verlangt sie",
+        report: { ...initialReport, description: "" },
+        check: (r) => r.checks.includes("missing_description"),
+      },
+      {
+        id: "Erstmeldung ohne Zeitpunkte",
+        want: "abgelehnt – Art. 2 Buchst. b verlangt beide",
+        report: { ...initialReport, detectedAt: "", classifiedAt: "" },
+        check: (r) =>
+          r.checks.includes("missing_detected_at") &&
+          r.checks.includes("missing_classified_at"),
       },
     ],
   },

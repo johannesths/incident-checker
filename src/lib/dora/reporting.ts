@@ -67,9 +67,13 @@ export interface ReportTypeDef {
   article: string;
   description: string;
   /**
-   * Artikel des RTS, deren Inhalte diese Meldung umfasst. Die Meldung ist
-   * kumulativ: Die Zwischenmeldung wiederholt die Angaben der Erstmeldung und
-   * ergänzt Art. 3, die Abschlussmeldung zusätzlich Art. 4.
+   * Artikel des RTS, deren Inhalte diese Meldung umfasst.
+   *
+   * Die Meldungen sind nicht kumulativ: Art. 1 nennt die allgemeinen
+   * Informationen ausdrücklich für alle drei Meldungen, die Art. 2, 3 und 4
+   * dagegen jeweils die spezifischen Informationen genau einer von ihnen. Eine
+   * Abschlussmeldung wiederholt daher weder den Sachverhalt der Erstmeldung
+   * noch die Angaben der Zwischenmeldung.
    */
   articles: ContentArticle[];
 }
@@ -93,7 +97,7 @@ export const REPORT_TYPES: ReportTypeDef[] = [
     article: "Art. 5 Abs. 1 Buchst. b",
     description:
       "Ausführlichere Angaben zum Vorfall. Aktualisierte Zwischenmeldungen sind unverzüglich zu übermitteln, jedenfalls sobald der reguläre Geschäftsbetrieb wiederaufgenommen wurde.",
-    articles: [1, 2, 3],
+    articles: [1, 3],
   },
   {
     id: "final",
@@ -103,7 +107,7 @@ export const REPORT_TYPES: ReportTypeDef[] = [
     article: "Art. 5 Abs. 1 Buchst. c",
     description:
       "Abschließende Meldung nach Abschluss der Ursachenanalyse, einschließlich der tatsächlichen Auswirkungen.",
-    articles: [1, 2, 3, 4],
+    articles: [1, 4],
   },
 ];
 
