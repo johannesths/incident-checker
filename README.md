@@ -26,11 +26,11 @@ Die Anwendung hält serverseitig keine Daten: Unternehmensprofil und
 Vorfallentwürfe liegen im Browser des Anwenders. Der Container ist damit
 zustandslos – er braucht kein Volume und keine Datenbank.
 
-### Portainer hinter Traefik
+### Portainer
 
-Die `docker-compose.yml` ist die Stack-Datei für Portainer. Der Container
-veröffentlicht keinen Host-Port, sondern hängt im Netzwerk von Traefik, das ihn
-über Port 3000 erreicht.
+Die `docker-compose.yml` ist die Stack-Datei. Sie enthält zwei Dienste:
+Traefik, das den Host-Port belegt, und die Anwendung, die Traefik über Port
+3000 im gemeinsamen Netzwerk erreicht.
 
 Unter **Stacks → Add stack** entweder
 
@@ -38,29 +38,37 @@ Unter **Stacks → Add stack** entweder
   Abbild dann selbst –, oder
 - **Web editor** wählen und den Inhalt der `docker-compose.yml` einfügen.
 
-Im Abschnitt *Environment variables* ist `APP_HOST` zu setzen: der Hostname, unter
-dem die Anwendung erreichbar sein soll. Weicht die eigene Traefik-Installation
-von den Vorgaben ab, kommen `TRAEFIK_NETWORK` (Vorgabe: `traefik`),
-`TRAEFIK_ENTRYPOINT` (`websecure`) und `TRAEFIK_CERTRESOLVER` (`letsencrypt`)
-hinzu; `TZ` steht ebenfalls zur Verfügung. Das Netzwerk muss bereits bestehen –
-es ist dasselbe, in dem Traefik läuft.
+Danach ist die Anwendung unter `http://<host>/` erreichbar – ohne Hostnamen und
+ohne Zertifikat. Im Abschnitt *Environment variables* lassen sich `HTTP_PORT`
+(Vorgabe: 80) und `TZ` (Vorgabe: Europe/Berlin) setzen.
 
 Auf der Kommandozeile entspricht das:
 
 ```bash
-APP_HOST=incident.example.org docker compose up -d --build
+docker compose up -d --build
 ```
 
-Router und Service heißen `ind-incident`. Compose ersetzt Variablen nur in den
-Werten der Labels, nicht in ihren Schlüsseln – ein anderer Name ist deshalb in
-der `docker-compose.yml` selbst zu ändern.
+Der Container der Anwendung bringt eine Zustandsprüfung mit: Portainer zeigt
+ihn nach dem Start als *healthy*, sobald die Startseite ausgeliefert wird.
 
-Der Container bringt eine Zustandsprüfung mit: Portainer zeigt ihn nach dem
-Start als *healthy*, sobald die Startseite ausgeliefert wird.
-
-Die Anwendung braucht keine weitere Anpassung für den Betrieb hinter einem
-Proxy: Sie spricht ihre eigene Schnittstelle über relative Pfade an und wertet
+Traefik routet alles unter `/` an die Anwendung; eine Aufteilung nach Pfaden
+erübrigt sich, weil Next.js die Seiten und `/api` aus demselben Prozess
+ausliefert. Weitere Anpassungen braucht die Anwendung hinter einem Proxy
+nicht: Sie spricht ihre eigene Schnittstelle über relative Pfade an und wertet
 weder Host- noch Weiterleitungs-Header aus.
+
+### Mehrere Stacks auf einem Host
+
+Läuft dort bereits ein Stack nach demselben Muster, belegt dessen Traefik den
+Port 80 und den Containernamen `traefik`. Dann entweder `HTTP_PORT` setzen und
+den Containernamen in der `docker-compose.yml` ändern – oder die Anwendung an
+den vorhandenen Traefik hängen: Dazu entfällt der Dienst `traefik`, das
+Netzwerk wird auf `external: true` gestellt, und der Anwendung kommt ein Label
+mit der Regel hinzu, unter der sie erreichbar sein soll, etwa
+
+```yaml
+- traefik.http.routers.ind-incident.rule=Host(`incident.example.org`)
+```
 
 ### Abbild lokal ausprobieren
 
@@ -86,9 +94,9 @@ docker push <registry>/ind-incident:<tag>
 ### Prüfungen gegen den Container
 
 Beide Prüfskripte sprechen eine laufende Instanz an und funktionieren auch
-gegen den Container:
+gegen den Container – auch durch Traefik hindurch:
 
 ```bash
-BASE_URL=http://127.0.0.1:3000 npm run test:severity
-BASE_URL=http://127.0.0.1:3000 npm run test:report
+BASE_URL=http://127.0.0.1 npm run test:severity
+BASE_URL=http://127.0.0.1 npm run test:report
 ```

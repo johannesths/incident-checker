@@ -1,54 +1,66 @@
-# Stack für Portainer hinter Traefik.
+# Stack für Portainer: Traefik und die Anwendung in einem Netzwerk.
 #
-# Der Container veröffentlicht keinen Host-Port, sondern hängt im Netzwerk von
-# Traefik, das ihn über Port 3000 erreicht.
+# Der Stack bringt seinen eigenen Traefik mit und veröffentlicht nur dessen
+# Port. Erreichbar ist die Anwendung damit unter http://<host>/ – ohne
+# Hostnamen, ohne Zertifikat.
 #
-# Erforderlich: APP_HOST – der Hostname, unter dem die Anwendung erreichbar sein
-# soll. Die übrigen Variablen haben Vorgaben und sind nur anzupassen, wenn die
-# eigene Traefik-Installation davon abweicht:
+# Einstellbar sind:
 #
-#   TRAEFIK_NETWORK      Docker-Netzwerk, in dem Traefik lauscht (Vorgabe: traefik)
-#   TRAEFIK_ENTRYPOINT   Entrypoint von Traefik            (Vorgabe: websecure)
-#   TRAEFIK_CERTRESOLVER Zertifikatsaussteller             (Vorgabe: letsencrypt)
+#   HTTP_PORT   Host-Port für Traefik (Vorgabe: 80)
+#   TZ          Zeitzone im Container (Vorgabe: Europe/Berlin)
 #
-# Das Netzwerk muss bereits existieren – es ist dasselbe, in dem Traefik läuft.
-#
-# Router und Service heißen "ind-incident". Compose ersetzt Variablen nur in den
-# Werten der Labels, nicht in ihren Schlüsseln; ein anderer Name ist deshalb
-# hier im Text zu ändern.
+# Läuft auf demselben Host bereits ein anderer Stack nach diesem Muster,
+# belegt dessen Traefik Port 80 und den Containernamen "traefik". Dann
+# entweder HTTP_PORT setzen und den Containernamen hier ändern – oder die
+# Anwendung an den vorhandenen Traefik hängen: Dazu entfällt der Dienst
+# "traefik", das Netzwerk wird auf "external: true" gestellt, und der
+# Anwendung kommt ein Label mit der Regel hinzu, unter der sie erreichbar sein
+# soll.
 #
 # Soll statt eines lokal gebauten ein fertiges Abbild laufen, "build" durch
 # "image: <registry>/ind-incident:<tag>" ersetzen.
 
 services:
+  traefik:
+    image: traefik:v3.7
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      # Nur Container mit traefik.enable=true werden geroutet.
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      # Lesend: Traefik liest die Labels der Container, es startet keine.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [app]
+
   ind-incident:
     build:
       context: .
     image: ind-incident:latest
     container_name: ind-incident
     restart: unless-stopped
-    networks:
-      - traefik
     environment:
       NODE_ENV: production
       # Die Anwendung hält keine Daten auf dem Server – Unternehmensprofil und
       # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume und
       # keine weiteren Umgebungsvariablen.
       TZ: ${TZ:-Europe/Berlin}
+    networks: [app]
     labels:
-      traefik.enable: "true"
-      # Hängt der Container in mehreren Netzwerken, muss Traefik wissen, über
-      # welches es ihn anspricht.
-      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
-      traefik.http.routers.ind-incident.rule: Host(`${APP_HOST:?APP_HOST ist erforderlich, z. B. incident.example.org}`)
-      traefik.http.routers.ind-incident.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
-      traefik.http.routers.ind-incident.tls: "true"
-      traefik.http.routers.ind-incident.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.enable=true
       # Der Container veröffentlicht keinen Port; Traefik braucht ihn deshalb
       # ausdrücklich.
-      traefik.http.services.ind-incident.loadbalancer.server.port: "3000"
+      - traefik.http.services.ind-incident.loadbalancer.server.port=3000
+      # Ein Dienst für alles: Next.js liefert die Seiten und /api aus demselben
+      # Prozess aus, eine Aufteilung nach Pfaden erübrigt sich.
+      - traefik.http.routers.ind-incident.rule=PathPrefix(`/`)
+      - traefik.http.routers.ind-incident.entrypoints=web
 
 networks:
-  traefik:
-    external: true
-    name: ${TRAEFIK_NETWORK:-traefik}
+  app:
