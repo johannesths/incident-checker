@@ -24,35 +24,53 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 Die Anwendung hält serverseitig keine Daten: Unternehmensprofil und
 Vorfallentwürfe liegen im Browser des Anwenders. Der Container ist damit
-zustandslos – er braucht kein Volume, keine Datenbank und keine
-Umgebungsvariablen.
+zustandslos – er braucht kein Volume und keine Datenbank.
 
-```bash
-docker compose up -d --build
-```
+### Portainer hinter Traefik
 
-Danach läuft die Anwendung auf http://localhost:3000. Ein anderer Host-Port
-lässt sich über `HOST_PORT` setzen:
-
-```bash
-HOST_PORT=8080 docker compose up -d --build
-```
-
-### Portainer
+Die `docker-compose.yml` ist die Stack-Datei für Portainer. Der Container
+veröffentlicht keinen Host-Port, sondern hängt im Netzwerk von Traefik, das ihn
+über Port 3000 erreicht.
 
 Unter **Stacks → Add stack** entweder
 
-- **Repository** wählen und dieses Repository samt `docker-compose.yml`
-  angeben – Portainer baut das Abbild dann selbst –, oder
+- **Repository** wählen und dieses Repository angeben – Portainer baut das
+  Abbild dann selbst –, oder
 - **Web editor** wählen und den Inhalt der `docker-compose.yml` einfügen.
 
-Im Abschnitt *Environment variables* sind `HOST_PORT` und `TZ` einstellbar.
-Läuft die Anwendung hinter einem Reverse Proxy, kann die
-Portfreigabe in der `docker-compose.yml` entfallen; der Proxy erreicht den
-Container dann über Port 3000 im gemeinsamen Netzwerk.
+Im Abschnitt *Environment variables* ist `APP_HOST` zu setzen: der Hostname, unter
+dem die Anwendung erreichbar sein soll. Weicht die eigene Traefik-Installation
+von den Vorgaben ab, kommen `TRAEFIK_NETWORK` (Vorgabe: `traefik`),
+`TRAEFIK_ENTRYPOINT` (`websecure`) und `TRAEFIK_CERTRESOLVER` (`letsencrypt`)
+hinzu; `TZ` steht ebenfalls zur Verfügung. Das Netzwerk muss bereits bestehen –
+es ist dasselbe, in dem Traefik läuft.
+
+Auf der Kommandozeile entspricht das:
+
+```bash
+APP_HOST=incident.example.org docker compose up -d --build
+```
+
+Router und Service heißen `ind-incident`. Compose ersetzt Variablen nur in den
+Werten der Labels, nicht in ihren Schlüsseln – ein anderer Name ist deshalb in
+der `docker-compose.yml` selbst zu ändern.
 
 Der Container bringt eine Zustandsprüfung mit: Portainer zeigt ihn nach dem
 Start als *healthy*, sobald die Startseite ausgeliefert wird.
+
+Die Anwendung braucht keine weitere Anpassung für den Betrieb hinter einem
+Proxy: Sie spricht ihre eigene Schnittstelle über relative Pfade an und wertet
+weder Host- noch Weiterleitungs-Header aus.
+
+### Abbild lokal ausprobieren
+
+Ohne Traefik – etwa um das Produktionsabbild vor dem Ausrollen anzusehen –
+genügen zwei Befehle; eine Compose-Datei braucht es dafür nicht:
+
+```bash
+docker build -t ind-incident .
+docker run --rm -p 3000:3000 ind-incident
+```
 
 ### Fertiges Abbild ausliefern
 
@@ -74,18 +92,3 @@ gegen den Container:
 BASE_URL=http://127.0.0.1:3000 npm run test:severity
 BASE_URL=http://127.0.0.1:3000 npm run test:report
 ```
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

@@ -1,7 +1,23 @@
-# Stack für Portainer: "Stacks → Add stack" und diese Datei einfügen oder das
-# Repository als Quelle angeben. Portainer baut das Abbild dann selbst.
+# Stack für Portainer hinter Traefik.
 #
-# Soll stattdessen ein fertiges Abbild laufen, "build" durch
+# Der Container veröffentlicht keinen Host-Port, sondern hängt im Netzwerk von
+# Traefik, das ihn über Port 3000 erreicht.
+#
+# Erforderlich: APP_HOST – der Hostname, unter dem die Anwendung erreichbar sein
+# soll. Die übrigen Variablen haben Vorgaben und sind nur anzupassen, wenn die
+# eigene Traefik-Installation davon abweicht:
+#
+#   TRAEFIK_NETWORK      Docker-Netzwerk, in dem Traefik lauscht (Vorgabe: traefik)
+#   TRAEFIK_ENTRYPOINT   Entrypoint von Traefik            (Vorgabe: websecure)
+#   TRAEFIK_CERTRESOLVER Zertifikatsaussteller             (Vorgabe: letsencrypt)
+#
+# Das Netzwerk muss bereits existieren – es ist dasselbe, in dem Traefik läuft.
+#
+# Router und Service heißen "ind-incident". Compose ersetzt Variablen nur in den
+# Werten der Labels, nicht in ihren Schlüsseln; ein anderer Name ist deshalb
+# hier im Text zu ändern.
+#
+# Soll statt eines lokal gebauten ein fertiges Abbild laufen, "build" durch
 # "image: <registry>/ind-incident:<tag>" ersetzen.
 
 services:
@@ -11,12 +27,28 @@ services:
     image: ind-incident:latest
     container_name: ind-incident
     restart: unless-stopped
-    ports:
-      # Nur der Host-Port ist einstellbar; im Container bleibt es Port 3000.
-      - "${HOST_PORT:-3000}:3000"
+    networks:
+      - traefik
     environment:
       NODE_ENV: production
       # Die Anwendung hält keine Daten auf dem Server – Unternehmensprofil und
       # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume und
       # keine weiteren Umgebungsvariablen.
       TZ: ${TZ:-Europe/Berlin}
+    labels:
+      traefik.enable: "true"
+      # Hängt der Container in mehreren Netzwerken, muss Traefik wissen, über
+      # welches es ihn anspricht.
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
+      traefik.http.routers.ind-incident.rule: Host(`${APP_HOST:?APP_HOST ist erforderlich, z. B. incident.example.org}`)
+      traefik.http.routers.ind-incident.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.ind-incident.tls: "true"
+      traefik.http.routers.ind-incident.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      # Der Container veröffentlicht keinen Port; Traefik braucht ihn deshalb
+      # ausdrücklich.
+      traefik.http.services.ind-incident.loadbalancer.server.port: "3000"
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
