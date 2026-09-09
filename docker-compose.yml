@@ -30,6 +30,7 @@ services:
       # ---- HTTPS router (entrypoint: https, TLS via cloudflare, auth via tinyauth) ----
       - "traefik.http.routers.ind-incident-https.rule=Host(`${APP_DOMAIN:-threatly.graysec.de}`)"
       - "traefik.http.routers.ind-incident-https.entrypoints=https"
+      - "traefik.http.routers.ind-incident-https.tls=true"
       - "traefik.http.routers.ind-incident-https.middlewares=tinyauth@docker"
       - "traefik.http.routers.ind-incident-https.service=ind-incident"
 
