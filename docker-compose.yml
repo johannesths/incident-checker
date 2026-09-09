@@ -1,44 +1,4 @@
-# Stack für Portainer: Traefik und die Anwendung in einem Netzwerk.
-#
-# Der Stack bringt seinen eigenen Traefik mit und veröffentlicht nur dessen
-# Port. Erreichbar ist die Anwendung damit unter http://<host>/ – ohne
-# Hostnamen, ohne Zertifikat.
-#
-# Einstellbar sind:
-#
-#   HTTP_PORT   Host-Port für Traefik (Vorgabe: 80)
-#   TZ          Zeitzone im Container (Vorgabe: Europe/Berlin)
-#
-# Läuft auf demselben Host bereits ein anderer Stack nach diesem Muster,
-# belegt dessen Traefik Port 80 und den Containernamen "traefik". Dann
-# entweder HTTP_PORT setzen und den Containernamen hier ändern – oder die
-# Anwendung an den vorhandenen Traefik hängen: Dazu entfällt der Dienst
-# "traefik", das Netzwerk wird auf "external: true" gestellt, und der
-# Anwendung kommt ein Label mit der Regel hinzu, unter der sie erreichbar sein
-# soll.
-#
-# Soll statt eines lokal gebauten ein fertiges Abbild laufen, "build" durch
-# "image: <registry>/ind-incident:<tag>" ersetzen.
-
 services:
-  traefik:
-    image: traefik:v3.7
-    container_name: traefik
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      # Nur Container mit traefik.enable=true werden geroutet.
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --log.level=INFO
-      - --accesslog=true
-    ports:
-      - "${HTTP_PORT:-80}:80"
-    volumes:
-      # Lesend: Traefik liest die Labels der Container, es startet keine.
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [app]
-
   ind-incident:
     build:
       context: .
@@ -51,16 +11,30 @@ services:
       # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume und
       # keine weiteren Umgebungsvariablen.
       TZ: ${TZ:-Europe/Berlin}
-    networks: [app]
+    networks:
+      - traefik
     labels:
-      - traefik.enable=true
-      # Der Container veröffentlicht keinen Port; Traefik braucht ihn deshalb
-      # ausdrücklich.
-      - traefik.http.services.ind-incident.loadbalancer.server.port=3000
-      # Ein Dienst für alles: Next.js liefert die Seiten und /api aus demselben
-      # Prozess aus, eine Aufteilung nach Pfaden erübrigt sich.
-      - traefik.http.routers.ind-incident.rule=PathPrefix(`/`)
-      - traefik.http.routers.ind-incident.entrypoints=web
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
 
+      # ---- HTTP router (entrypoint: http) — redirects to HTTPS ----
+      - "traefik.http.routers.ind-incident-http.rule=Host(`${APP_DOMAIN:-threatly.graysec.de}`)"
+      - "traefik.http.routers.ind-incident-http.entrypoints=http"
+      - "traefik.http.routers.ind-incident-http.middlewares=ind-incident-redirect"
+      - "traefik.http.routers.ind-incident-http.service=ind-incident"
+
+      # Redirect middleware: force HTTPS
+      - "traefik.http.middlewares.ind-incident-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.ind-incident-redirect.redirectscheme.permanent=true"
+
+      # ---- HTTPS router (entrypoint: https, TLS via cloudflare, auth via tinyauth) ----
+      - "traefik.http.routers.ind-incident-https.rule=Host(`${APP_DOMAIN:-threatly.graysec.de}`)"
+      - "traefik.http.routers.ind-incident-https.entrypoints=https"
+      - "traefik.http.routers.ind-incident-https.middlewares=tinyauth@docker"
+      - "traefik.http.routers.ind-incident-https.service=ind-incident"
+
+      # ---- Service ----
+      - "traefik.http.services.ind-incident.loadbalancer.server.port=3000"
 networks:
-  app:
+  traefik:
+    external: true
