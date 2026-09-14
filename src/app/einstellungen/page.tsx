@@ -38,6 +38,7 @@ import {
   saveCompanyProfile,
   useCompanyProfile,
 } from "@/lib/company/store";
+import { leiProblem } from "@/lib/lei";
 
 /** Die Kategorien des Art. 2 Abs. 1 DORA als Auswahlliste. */
 const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
@@ -45,7 +46,6 @@ const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
   label: t.label,
 }));
 
-const LEI_PATTERN = /^[A-Z0-9]{20}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
@@ -68,9 +68,8 @@ function validate(form: CompanyProfile): FieldErrors {
   if (!form.name.trim()) {
     errors.name = "Bitte geben Sie den Namen des Unternehmens an.";
   }
-  if (form.lei && !LEI_PATTERN.test(form.lei)) {
-    errors.lei = "Der LEI besteht aus 20 alphanumerischen Zeichen.";
-  }
+  const leiError = form.lei ? leiProblem(form.lei) : null;
+  if (leiError) errors.lei = leiError;
   if (form.contactEmail && !EMAIL_PATTERN.test(form.contactEmail)) {
     errors.contactEmail = "Bitte geben Sie eine gültige E-Mail-Adresse an.";
   }
@@ -78,10 +77,10 @@ function validate(form: CompanyProfile): FieldErrors {
     errors.secondContactEmail =
       "Bitte geben Sie eine gültige E-Mail-Adresse an.";
   }
-  if (form.groupParentLei && !LEI_PATTERN.test(form.groupParentLei)) {
-    errors.groupParentLei =
-      "Der LEI besteht aus 20 alphanumerischen Zeichen.";
-  }
+  const parentLeiError = form.groupParentLei
+    ? leiProblem(form.groupParentLei)
+    : null;
+  if (parentLeiError) errors.groupParentLei = parentLeiError;
   if (form.reportingCurrency && !CURRENCY_PATTERN.test(form.reportingCurrency)) {
     errors.reportingCurrency =
       "Bitte geben Sie einen ISO-4217-Code aus drei Buchstaben an, z. B. EUR.";

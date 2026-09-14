@@ -73,7 +73,7 @@ export const companyProfileSchema = z.object({
   name: z.string(),
   legalForm: z.string(),
   entityType: z.enum(entityTypeIds),
-  /** Rechtsträgerkennung (Legal Entity Identifier), 20 alphanumerische Zeichen. */
+  /** Rechtsträgerkennung (Legal Entity Identifier), siehe @/lib/lei. */
   lei: z.string(),
   /** Unternehmensnummer bei der Aufsicht (BaFin-ID). */
   bafinId: z.string(),
@@ -139,7 +139,7 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
   name: "Konstantinus Bank AG",
   legalForm: "Aktiengesellschaft",
   entityType: "credit_institution",
-  lei: "529900KONSTANTINUSBK0001",
+  lei: "529900KONSTANTINUS28",
   bafinId: "10123456",
 
   street: "Berthold-Allee 12/13",
@@ -159,7 +159,7 @@ export const DEMO_COMPANY_PROFILE: CompanyProfile = {
   secondContactPhone: "+49 69 12345679",
 
   groupParentName: "Konstantinus Holding SE",
-  groupParentLei: "529900KONSTHOLDING1",
+  groupParentLei: "529900KONSTHOLDING56",
   reportingCurrency: "EUR",
   nis2EssentialEntity: true,
 

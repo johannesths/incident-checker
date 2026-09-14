@@ -86,6 +86,7 @@ import {
   type EntityType,
 } from "@/lib/company/profile";
 import { useCompanyProfile } from "@/lib/company/store";
+import { isValidLei, leiProblem } from "@/lib/lei";
 import type {
   CyberThreatInput,
   ReportInput,
@@ -219,7 +220,6 @@ const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
 }));
 
 const MIN_DESCRIPTION_LENGTH = 10;
-const LEI_PATTERN = /^[A-Z0-9]{20}$/;
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
@@ -229,7 +229,70 @@ function leiListValid(value: string): boolean {
   return value
     .split(";")
     .map((p) => p.trim())
-    .every((p) => LEI_PATTERN.test(p));
+    .every(isValidLei);
+}
+
+type FieldErrors = Partial<Record<keyof ReportForm, string>>;
+
+/**
+ * Beanstandungen an den allgemeinen Angaben, je Feld. Diese Angaben kommen aus
+ * dem Unternehmensprofil; ohne den Hinweis am Feld bliebe unklar, welche von
+ * ihnen den Schritt aufhält – etwa ein LEI mit der falschen Länge.
+ */
+function generalInformationErrors(f: ReportForm): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!f.entityName.trim()) {
+    errors.entityName = "Bitte geben Sie das Finanzunternehmen an.";
+  }
+  const entityLei = leiProblem(f.entityLei);
+  if (entityLei) errors.entityLei = entityLei;
+  const submitterLei = f.submittingEntityCode
+    ? leiProblem(f.submittingEntityCode)
+    : null;
+  if (submitterLei) errors.submittingEntityCode = submitterLei;
+  if (!leiListValid(f.aggregatedEntityLeis)) {
+    errors.aggregatedEntityLeis =
+      "Je Finanzunternehmen ein gültiger LEI, getrennt durch Semikolon.";
+  }
+  const parentLei = f.groupParentLei ? leiProblem(f.groupParentLei) : null;
+  if (parentLei) errors.groupParentLei = parentLei;
+  if (!CURRENCY_PATTERN.test(f.reportingCurrency)) {
+    errors.reportingCurrency = "ISO-4217-Code aus drei Buchstaben, z. B. EUR.";
+  }
+  if (!f.primaryContactName.trim()) {
+    errors.primaryContactName = "Bitte geben Sie eine verantwortliche Person an.";
+  }
+  if (!EMAIL_PATTERN.test(f.primaryContactEmail)) {
+    errors.primaryContactEmail = "Bitte geben Sie eine gültige E-Mail-Adresse an.";
+  }
+  if (!f.primaryContactPhone.trim()) {
+    errors.primaryContactPhone = "Bitte geben Sie eine Telefonnummer an.";
+  }
+  if (f.secondContactEmail && !EMAIL_PATTERN.test(f.secondContactEmail)) {
+    errors.secondContactEmail = "Bitte geben Sie eine gültige E-Mail-Adresse an.";
+  }
+  return errors;
+}
+
+const ENTITY_FIELDS: (keyof ReportForm)[] = [
+  "entityName",
+  "entityLei",
+  "submittingEntityCode",
+  "aggregatedEntityLeis",
+  "groupParentLei",
+  "reportingCurrency",
+];
+
+const CONTACT_FIELDS: (keyof ReportForm)[] = [
+  "primaryContactName",
+  "primaryContactEmail",
+  "primaryContactPhone",
+  "secondContactEmail",
+];
+
+function noErrorsIn(fields: (keyof ReportForm)[], f: ReportForm): boolean {
+  const errors = generalInformationErrors(f);
+  return fields.every((field) => !errors[field]);
 }
 
 const OBLIGATION_TONE: Record<
@@ -386,14 +449,7 @@ const STEPS: StepDef[] = [
     kinds: BOTH,
     title: "Meldendes Finanzunternehmen",
     summary: (f) => join([f.entityName, f.entityLei, f.reportingCurrency]),
-    complete: (f) =>
-      f.entityName.trim().length > 0 &&
-      LEI_PATTERN.test(f.entityLei) &&
-      CURRENCY_PATTERN.test(f.reportingCurrency) &&
-      (f.submittingEntityCode === "" ||
-        LEI_PATTERN.test(f.submittingEntityCode)) &&
-      (f.groupParentLei === "" || LEI_PATTERN.test(f.groupParentLei)) &&
-      leiListValid(f.aggregatedEntityLeis),
+    complete: (f) => noErrorsIn(ENTITY_FIELDS, f),
   },
   {
     id: "contacts",
@@ -402,11 +458,7 @@ const STEPS: StepDef[] = [
     title: "Verantwortliche für die Kommunikation mit der Behörde",
     summary: (f) =>
       join([f.primaryContactName, f.primaryContactEmail, f.secondContactName]),
-    complete: (f) =>
-      f.primaryContactName.trim().length > 0 &&
-      EMAIL_PATTERN.test(f.primaryContactEmail) &&
-      f.primaryContactPhone.trim().length > 0 &&
-      (f.secondContactEmail === "" || EMAIL_PATTERN.test(f.secondContactEmail)),
+    complete: (f) => noErrorsIn(CONTACT_FIELDS, f),
   },
 
   /* --- Art. 2: Erstmeldung ------------------------------------------------ */
@@ -752,6 +804,13 @@ function nextStepId(
 interface ReportDraft {
   kind: SubmissionKind;
   form: ReportForm;
+  /**
+   * Die Vorbelegung aus dem Unternehmensprofil, wie sie in den Entwurf
+   * geschrieben wurde. Ändert sich das Profil danach – etwa weil ein LEI
+   * korrigiert wurde –, lässt sich daran erkennen, welche Felder noch die
+   * alte Vorbelegung tragen und welche der Anwender selbst geändert hat.
+   */
+  profileSnapshot: Partial<ReportForm>;
   stepStatus: Record<StepId, StepStatus>;
   /** Aktuell aufgeklappter Schritt; null = alle eingeklappt. */
   activeStep: StepId | null;
@@ -863,9 +922,11 @@ function initialDraft(
   profile: CompanyProfile | undefined,
   kind: SubmissionKind,
 ): ReportDraft {
+  const fromProfile = formFromProfile(profile);
   return {
     kind,
-    form: { ...emptyForm, ...formFromProfile(profile), ...prefill },
+    form: { ...emptyForm, ...fromProfile, ...prefill },
+    profileSnapshot: fromProfile,
     stepStatus: initialStatus,
     activeStep: "submission",
   };
@@ -875,6 +936,10 @@ function initialDraft(
  * Ergänzt einen gespeicherten Stand um fehlende Felder. Stände aus früheren
  * Fassungen dieser Seite werden übernommen, statt die Seite scheitern zu
  * lassen; unbekannte Schrittkennungen fallen auf den ersten Schritt zurück.
+ *
+ * Felder, die aus dem Unternehmensprofil stammen, folgen dem Profil, solange
+ * der Anwender sie nicht selbst geändert hat: Trägt der Entwurf noch den Wert,
+ * mit dem er vorbelegt wurde, gilt der aktuelle Wert des Profils.
  */
 function withDefaults(
   stored: Partial<ReportDraft> | null | undefined,
@@ -890,9 +955,28 @@ function withDefaults(
       : stored.activeStep && STEP_IDS.has(stored.activeStep)
         ? stored.activeStep
         : base.activeStep;
+
+  const form: ReportForm = { ...base.form, ...stored.form };
+  // Ein Entwurf ohne Momentaufnahme stammt aus einer früheren Fassung. Seine
+  // Profilfelder gelten als unberührt – bis auf den Referenzcode, dessen
+  // Vorbelegung nur ein Präfix ist und den der Anwender daher fast immer
+  // selbst vervollständigt hat.
+  const snapshot = stored.profileSnapshot;
+  for (const key of Object.keys(base.profileSnapshot) as (keyof ReportForm)[]) {
+    const untouched =
+      snapshot === undefined
+        ? key !== "incidentReferenceCode"
+        : stored.form?.[key] === undefined ||
+          stored.form[key] === snapshot[key];
+    if (untouched) {
+      (form as Record<keyof ReportForm, unknown>)[key] = base.profileSnapshot[key];
+    }
+  }
+
   return {
     kind: stored.kind ?? base.kind,
-    form: { ...base.form, ...stored.form },
+    form,
+    profileSnapshot: base.profileSnapshot,
     stepStatus: { ...initialStatus, ...stored.stepStatus },
     activeStep,
   };
@@ -1053,6 +1137,7 @@ export default function ReportPage() {
   /* --- Felder je Schritt -------------------------------------------------- */
 
   function stepFields(id: StepId) {
+    const fieldErrors = generalInformationErrors(form);
     switch (id) {
       case "submission":
         return (
@@ -1125,9 +1210,11 @@ export default function ReportPage() {
               <Field
                 label="Name des Finanzunternehmens"
                 htmlFor="entityName"
+                error={fieldErrors.entityName}
               >
                 <Input
                   id="entityName"
+                  aria-invalid={Boolean(fieldErrors.entityName)}
                   value={form.entityName}
                   onChange={(e) => update("entityName", e.target.value)}
                 />
@@ -1135,9 +1222,11 @@ export default function ReportPage() {
               <Field
                 label="LEI-Code des Finanzunternehmens"
                 htmlFor="entityLei"
+                error={fieldErrors.entityLei}
               >
                 <Input
                   id="entityLei"
+                  aria-invalid={Boolean(fieldErrors.entityLei)}
                   maxLength={20}
                   placeholder="20 alphanumerische Zeichen"
                   value={form.entityLei}
@@ -1150,7 +1239,11 @@ export default function ReportPage() {
 
             {profile &&
               (form.entityName !== profile.name ||
-                form.entityLei !== profile.lei) && (
+                form.entityLei !== profile.lei ||
+                form.entityType !== profile.entityType ||
+                form.groupParentName !== profile.groupParentName ||
+                form.groupParentLei !== profile.groupParentLei ||
+                form.reportingCurrency !== profile.reportingCurrency) && (
                 <ProfileApplyButton
                   icon={Building2}
                   onClick={() =>
@@ -1158,6 +1251,9 @@ export default function ReportPage() {
                       entityName: profile.name,
                       entityLei: profile.lei,
                       entityType: profile.entityType,
+                      groupParentName: profile.groupParentName,
+                      groupParentLei: profile.groupParentLei,
+                      reportingCurrency: profile.reportingCurrency,
                     })
                   }
                 />
@@ -1203,9 +1299,11 @@ export default function ReportPage() {
               <Field
                 label="Identifikationscode des übermittelnden Unternehmens"
                 htmlFor="submittingEntityCode"
+                error={fieldErrors.submittingEntityCode}
               >
                 <Input
                   id="submittingEntityCode"
+                  aria-invalid={Boolean(fieldErrors.submittingEntityCode)}
                   maxLength={20}
                   value={form.submittingEntityCode}
                   onChange={(e) =>
@@ -1231,9 +1329,11 @@ export default function ReportPage() {
               <Field
                 label="Deren LEI-Codes"
                 htmlFor="aggregatedEntityLeis"
+                error={fieldErrors.aggregatedEntityLeis}
               >
                 <Input
                   id="aggregatedEntityLeis"
+                  aria-invalid={Boolean(fieldErrors.aggregatedEntityLeis)}
                   value={form.aggregatedEntityLeis}
                   onChange={(e) =>
                     update("aggregatedEntityLeis", e.target.value.toUpperCase())
@@ -1256,9 +1356,11 @@ export default function ReportPage() {
               <Field
                 label="Dessen LEI-Code"
                 htmlFor="groupParentLei"
+                error={fieldErrors.groupParentLei}
               >
                 <Input
                   id="groupParentLei"
+                  aria-invalid={Boolean(fieldErrors.groupParentLei)}
                   maxLength={20}
                   value={form.groupParentLei}
                   onChange={(e) =>
@@ -1269,9 +1371,11 @@ export default function ReportPage() {
               <Field
                 label="Währung monetärer Beträge"
                 htmlFor="reportingCurrency"
+                error={fieldErrors.reportingCurrency}
               >
                 <Input
                   id="reportingCurrency"
+                  aria-invalid={Boolean(fieldErrors.reportingCurrency)}
                   maxLength={3}
                   value={form.reportingCurrency}
                   onChange={(e) =>
@@ -1293,9 +1397,11 @@ export default function ReportPage() {
               <Field
                 label="Name"
                 htmlFor="primaryContactName"
+                error={fieldErrors.primaryContactName}
               >
                 <Input
                   id="primaryContactName"
+                  aria-invalid={Boolean(fieldErrors.primaryContactName)}
                   value={form.primaryContactName}
                   onChange={(e) => update("primaryContactName", e.target.value)}
                 />
@@ -1303,9 +1409,11 @@ export default function ReportPage() {
               <Field
                 label="E-Mail-Adresse"
                 htmlFor="primaryContactEmail"
+                error={fieldErrors.primaryContactEmail}
               >
                 <Input
                   id="primaryContactEmail"
+                  aria-invalid={Boolean(fieldErrors.primaryContactEmail)}
                   type="email"
                   value={form.primaryContactEmail}
                   onChange={(e) => update("primaryContactEmail", e.target.value)}
@@ -1314,9 +1422,11 @@ export default function ReportPage() {
               <Field
                 label="Telefonnummer"
                 htmlFor="primaryContactPhone"
+                error={fieldErrors.primaryContactPhone}
               >
                 <Input
                   id="primaryContactPhone"
+                  aria-invalid={Boolean(fieldErrors.primaryContactPhone)}
                   type="tel"
                   placeholder="+49 69 12345678"
                   value={form.primaryContactPhone}
@@ -1338,9 +1448,11 @@ export default function ReportPage() {
               <Field
                 label="E-Mail-Adresse"
                 htmlFor="secondContactEmail"
+                error={fieldErrors.secondContactEmail}
               >
                 <Input
                   id="secondContactEmail"
+                  aria-invalid={Boolean(fieldErrors.secondContactEmail)}
                   type="email"
                   value={form.secondContactEmail}
                   onChange={(e) => update("secondContactEmail", e.target.value)}
@@ -2719,18 +2831,19 @@ export default function ReportPage() {
 function Field({
   label,
   htmlFor,
+  error,
   children,
 }: {
   label: string;
   htmlFor: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={htmlFor}>
-        {label}
-      </Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

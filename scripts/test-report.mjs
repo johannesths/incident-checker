@@ -29,7 +29,7 @@ function hoursAgo(hours) {
 /** Art. 1 – allgemeine Informationen, gemeinsam für beide Meldungen. */
 const generalInformation = {
   entityName: "Musterbank AG",
-  entityLei: "529900MUSTERBANK0001",
+  entityLei: "529900MUSTERBANK0030",
   entityType: "credit_institution",
   submittingEntityName: "",
   submittingEntityCode: "",
@@ -296,10 +296,22 @@ const CASES = [
     group: "Art. 1 – Identifikation des Finanzunternehmens",
     cases: [
       {
-        id: "Ungültiger LEI-Code",
+        id: "LEI-Code mit falscher Länge",
         want: "abgelehnt – 20 alphanumerische Zeichen (HTTP 422)",
         report: { ...initialReport, entityLei: "529900" },
         check: (r) => r.status === 422 && r.body.issues !== undefined,
+      },
+      {
+        id: "LEI-Code mit falschen Prüfziffern",
+        want: "abgelehnt – ISO 17442 MOD 97-10 (HTTP 422)",
+        report: { ...initialReport, entityLei: "529900MUSTERBANK0031" },
+        check: (r) => r.status === 422 && r.body.issues !== undefined,
+      },
+      {
+        id: "Echter LEI-Code",
+        want: "angenommen – Prüfziffern stimmen",
+        report: { ...initialReport, entityLei: "7LTWFZYICNSX8D621K86" },
+        check: (r) => r.status === 200,
       },
       {
         id: "Übermittelndes Unternehmen ohne Identifikationscode",
@@ -314,7 +326,7 @@ const CASES = [
           ...initialReport,
           aggregatedEntityNames: "Musterbank Direkt AG;Musterbank Leasing AG",
           aggregatedEntityLeis:
-            "529900MUSTERBANK0002;529900MUSTERBANK0003",
+            "529900MUSTERBANK0224;529900MUSTERBANK0321",
         },
         check: (r) => r.status === 200,
       },
@@ -324,7 +336,7 @@ const CASES = [
         report: {
           ...initialReport,
           aggregatedEntityNames: "Musterbank Direkt AG;Musterbank Leasing AG",
-          aggregatedEntityLeis: "529900MUSTERBANK0002",
+          aggregatedEntityLeis: "529900MUSTERBANK0224",
         },
         check: (r) => r.checks.includes("aggregated_count_mismatch"),
       },

@@ -27,6 +27,7 @@ import {
   THREAT_TECHNIQUES,
 } from "@/lib/dora/report-fields";
 import { ENTITY_TYPES, type EntityType } from "@/lib/company/profile";
+import { isValidLei } from "@/lib/lei";
 
 const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
 
@@ -219,19 +220,17 @@ export type SeverityResult = z.infer<typeof severityResultSchema>;
  * leeres Feld ("keine Angabe") von einer 0 unterscheidbar bleibt.
  * ------------------------------------------------------------------------- */
 
-const LEI_PATTERN = /^[A-Z0-9]{20}$/;
+const LEI_MESSAGE = "Bitte geben Sie einen gültigen LEI an (20 Zeichen, Prüfziffern nach ISO 17442).";
 
-/** Pflichtangabe eines LEI-Codes (ISO 17442-1:2020). */
-const leiSchema = z
-  .string()
-  .regex(LEI_PATTERN, "Der LEI besteht aus 20 alphanumerischen Zeichen.");
+/** Pflichtangabe eines LEI-Codes (ISO 17442). */
+const leiSchema = z.string().refine(isValidLei, LEI_MESSAGE);
 
 const optionalText = z.string().optional().default("");
 
 /** Leer oder ein LEI. */
 const optionalLei = optionalText.refine(
-  (v) => v === "" || LEI_PATTERN.test(v),
-  "Der LEI besteht aus 20 alphanumerischen Zeichen.",
+  (v) => v === "" || isValidLei(v),
+  LEI_MESSAGE,
 );
 
 /**
@@ -244,8 +243,8 @@ const optionalLeiList = optionalText.refine(
     v
       .split(";")
       .map((part) => part.trim())
-      .every((part) => LEI_PATTERN.test(part)),
-  "Bitte geben Sie je Finanzunternehmen einen LEI aus 20 alphanumerischen Zeichen an, getrennt durch Semikolon.",
+      .every(isValidLei),
+  "Bitte geben Sie je Finanzunternehmen einen gültigen LEI an, getrennt durch Semikolon.",
 );
 
 const optionalEmail = optionalText.refine(
