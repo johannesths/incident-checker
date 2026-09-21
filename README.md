@@ -111,6 +111,22 @@ Berichtswährung, die NIS-2-Einstufung, die über die Fristenregelung
 entscheidet, sowie die Referenzwerte für die Materialitätsschwellen. Ein
 Beispielunternehmen ist vorbelegt.
 
+### Zugangsschlüssel
+
+Ebenfalls unter *Einstellungen*: der Schlüssel für die Claude-API, mit dem
+die KI-gestützte Bewertung laufen wird, samt dem Datum, bis zu dem er gilt –
+danach verwendet die Anwendung ihn nicht mehr und weist darauf hin –, sowie
+der Schlüssel des Unternehmens für den angebundenen Managed Service. Beide
+sind Geheimnisse, keine Stammdaten: Sie bleiben vom Profil getrennt, das
+Beispielunternehmen lässt sie unberührt, und sie gelangen in keine Meldung
+und keine PDF-Zusammenfassung.
+
+> Vorläufig: Die Schlüssel werden je Browser eingegeben und liegen dort im
+> Klartext im `localStorage` – jeder Nutzer trägt sie auf jedem Gerät selbst
+> ein. Für einen gemeinsamen Unternehmensschlüssel ist das nicht der
+> Zielzustand; der wandert später auf den Server (Umgebungsvariablen des
+> Containers), und die Einstellungen zeigen dann nur noch den Status.
+
 ### Beispielszenarien
 
 Triage und Schweregrad bieten Szenarien zum Vorführen, die unterschiedliche
@@ -123,7 +139,9 @@ Die Anwendung hält serverseitig keine Daten. Das Unternehmensprofil liegt im
 `localStorage` des Browsers, Entwürfe und Ergebnisse eines Vorgangs im
 `sessionStorage` – sie enden mit dem Tab. Der Server ist zustandslos; es gibt
 keine Datenbank und kein Volume. Auch die PDF-Zusammenfassungen entstehen im
-Browser; ihre Daten verlassen ihn nicht.
+Browser; ihre Daten verlassen ihn nicht. Die Zugangsschlüssel liegen ebenfalls
+im `localStorage`; der Server erhält den API-Schlüssel nur für die Dauer einer
+Anfrage und speichert ihn nicht.
 
 ## Rechtsgrundlagen
 
@@ -176,6 +194,7 @@ src/
     schemas.ts            Zod-Schemata aller drei Schritte
     lei.ts                LEI-Prüfung nach ISO 17442
     company/              Unternehmensprofil und dessen Speicher
+    credentials/          Zugangsschlüssel (Claude-API, Managed Service) und deren Speicher
     pdf/                  PDF-Zusammenfassungen von Einstufung und Meldung
     ai/                   Triage- und Schweregraddienst (Mock)
     bafin/                Meldedienst (Simulation)

@@ -4,12 +4,16 @@ import { useState } from "react";
 import {
   Building2,
   ClipboardList,
+  Eye,
+  EyeOff,
   Gauge,
   Info,
+  KeyRound,
   Landmark,
   Network,
   RotateCcw,
   Save,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,20 @@ import {
   useCompanyProfile,
 } from "@/lib/company/store";
 import { leiProblem } from "@/lib/lei";
+import {
+  EMPTY_CREDENTIALS,
+  apiKeyStatus,
+  hasCredentials,
+  todayIsoDate,
+  trimCredentials,
+  validateCredentials,
+  type Credentials,
+} from "@/lib/credentials/credentials";
+import {
+  clearCredentials,
+  saveCredentials,
+  useCredentials,
+} from "@/lib/credentials/store";
 
 /** Die Kategorien des Art. 2 Abs. 1 DORA als Auswahlliste. */
 const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
@@ -104,11 +122,17 @@ function sameProfile(a: CompanyProfile, b: CompanyProfile): boolean {
 
 export default function SettingsPage() {
   const profile = useCompanyProfile();
+  const credentials = useCredentials();
 
   // undefined: Der Speicher wurde noch nicht gelesen (Hydration).
-  if (profile === undefined) return null;
+  if (profile === undefined || credentials === undefined) return null;
 
-  return <ProfileForm profile={profile} />;
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <ProfileForm profile={profile} />
+      <CredentialsForm credentials={credentials} />
+    </div>
+  );
 }
 
 function ProfileForm({ profile }: { profile: CompanyProfile }) {
@@ -150,7 +174,7 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <>
       <PageHeader
         step="Einstellungen"
         title="Unternehmensprofil"
@@ -587,8 +611,178 @@ function ProfileForm({ profile }: { profile: CompanyProfile }) {
           </Button>
         </div>
       </form>
-    </div>
+    </>
   );
+}
+
+/* ---------------------------------------------------------------------------
+ * Zugangsschlüssel
+ * ------------------------------------------------------------------------- */
+
+const dateFormat = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium" });
+
+type CredentialErrors = Partial<Record<keyof Credentials, string>>;
+
+function sameCredentials(a: Credentials, b: Credentials): boolean {
+  return (Object.keys(EMPTY_CREDENTIALS) as (keyof Credentials)[]).every(
+    (key) => a[key] === b[key],
+  );
+}
+
+/**
+ * Die Schlüssel haben ein eigenes Formular mit eigenem Speichern: Sie sind
+ * Geheimnisse mit eigener Lebensdauer, nicht Teil des Profils – das
+ * Beispielunternehmen lässt sie unberührt, und sie gelangen in keine Meldung.
+ */
+function CredentialsForm({ credentials }: { credentials: Credentials }) {
+  const [form, setForm] = useState<Credentials>(credentials);
+  const [errors, setErrors] = useState<CredentialErrors>({});
+
+  const dirty = !sameCredentials(form, credentials);
+  const stored = hasCredentials(credentials);
+  const status = apiKeyStatus(credentials);
+
+  function update<K extends keyof Credentials>(key: K, value: Credentials[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+    setErrors((current) => {
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function onSubmit(e: React.SyntheticEvent) {
+    e.preventDefault();
+    const found = validateCredentials(form);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      toast.error("Bitte prüfen Sie die markierten Angaben.");
+      return;
+    }
+    const next = trimCredentials(form);
+    saveCredentials(next);
+    setForm(next);
+    toast.success("Zugangsschlüssel gespeichert.");
+  }
+
+  function remove() {
+    clearCredentials();
+    setForm(EMPTY_CREDENTIALS);
+    setErrors({});
+    toast.success("Zugangsschlüssel entfernt.");
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <Section
+        icon={KeyRound}
+        title="Zugangsschlüssel"
+        desc="Schlüssel, mit denen die Anwendung im Auftrag des Unternehmens auf externe Dienste zugreift. Sie bleiben in diesem Browser; der Server dieser Anwendung erhält den API-Schlüssel nur für die Dauer einer Anfrage und speichert ihn nicht."
+      >
+        <div className="grid gap-4 sm:grid-cols-[1fr_11rem]">
+          <Field
+            label="Claude-API-Schlüssel"
+            htmlFor="anthropicApiKey"
+            hint=""
+            error={errors.anthropicApiKey}
+          >
+            <SecretInput
+              id="anthropicApiKey"
+              placeholder="sk-ant-…"
+              value={form.anthropicApiKey}
+              invalid={Boolean(errors.anthropicApiKey)}
+              onChange={(value) => update("anthropicApiKey", value)}
+            />
+          </Field>
+          <Field
+            label="Gültig bis"
+            htmlFor="anthropicApiKeyValidUntil"
+            hint=""
+            error={errors.anthropicApiKeyValidUntil}
+          >
+            <Input
+              id="anthropicApiKeyValidUntil"
+              type="date"
+              min={todayIsoDate()}
+              value={form.anthropicApiKeyValidUntil}
+              aria-invalid={Boolean(errors.anthropicApiKeyValidUntil)}
+              onChange={(e) =>
+                update("anthropicApiKeyValidUntil", e.target.value)
+              }
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Managed-Service-Key"
+          htmlFor="managedServiceKey"
+          hint=""
+          error={errors.managedServiceKey}
+        >
+          <SecretInput
+            id="managedServiceKey"
+            value={form.managedServiceKey}
+            invalid={Boolean(errors.managedServiceKey)}
+            onChange={(value) => update("managedServiceKey", value)}
+          />
+        </Field>
+      </Section>
+
+      <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border/60 bg-card/70 p-5 backdrop-blur">
+        <p
+          className={cn(
+            "mr-auto text-xs",
+            status.state === "expired"
+              ? "text-destructive"
+              : status.state === "expiring"
+                ? "text-warning"
+                : "text-muted-foreground",
+          )}
+        >
+          {dirty ? "Nicht gespeicherte Änderungen." : apiKeyStatusText(status)}
+        </p>
+        {stored && (
+          <Button type="button" variant="ghost" onClick={remove}>
+            <Trash2 className="size-4" />
+            Schlüssel entfernen
+          </Button>
+        )}
+        {dirty && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setForm(credentials);
+              setErrors({});
+            }}
+          >
+            Verwerfen
+          </Button>
+        )}
+        <Button type="submit" size="lg" disabled={!dirty}>
+          <Save className="size-4" />
+          Schlüssel speichern
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Stand des gespeicherten API-Schlüssels in einem Satz. */
+function apiKeyStatusText(status: ReturnType<typeof apiKeyStatus>): string {
+  switch (status.state) {
+    case "missing":
+      return "Kein Claude-API-Schlüssel hinterlegt.";
+    case "valid":
+      return `Der Claude-API-Schlüssel ist gültig bis ${dateFormat.format(status.validUntil)}.`;
+    case "expiring":
+      return `Der Claude-API-Schlüssel läuft am ${dateFormat.format(status.validUntil)} ab – noch ${status.daysLeft} ${status.daysLeft === 1 ? "Tag" : "Tage"}.`;
+    case "expired":
+      return Number.isNaN(status.validUntil.getTime())
+        ? "Der Claude-API-Schlüssel hat kein gültiges Ablaufdatum und wird nicht verwendet."
+        : `Der Claude-API-Schlüssel ist am ${dateFormat.format(status.validUntil)} abgelaufen und wird nicht mehr verwendet.`;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -646,6 +840,50 @@ function Field({
       ) : (
         hint && <p className="text-xs text-muted-foreground">{hint}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Eingabe eines Geheimnisses: verdeckt, auf Wunsch lesbar. Ohne Autovervoll-
+ * ständigung, damit der Browser den Schlüssel nicht als Passwort anbietet.
+ */
+function SecretInput({
+  id,
+  value,
+  placeholder,
+  invalid,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  placeholder?: string;
+  invalid?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={revealed ? "text" : "password"}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={placeholder}
+        value={value}
+        aria-invalid={invalid}
+        onChange={(e) => onChange(e.target.value)}
+        className="pr-9 font-mono"
+      />
+      <button
+        type="button"
+        aria-label={revealed ? "Schlüssel verbergen" : "Schlüssel anzeigen"}
+        aria-pressed={revealed}
+        onClick={() => setRevealed((r) => !r)}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
     </div>
   );
 }
