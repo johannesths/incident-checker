@@ -1,102 +1,244 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Threatly
 
-## Getting Started
+Entscheidungsunterstützung für Finanzunternehmen bei IKT-bezogenen Vorfällen
+nach DORA: vom ersten Verdacht über die Einstufung als schwerwiegend bis zur
+Meldung an die zuständige Behörde.
 
-First, run the development server:
+Die Anwendung führt in drei Schritten durch die Verordnung. Jeder Schritt
+übernimmt das Ergebnis des vorherigen, sodass am Ende eine Meldung entsteht,
+deren Inhalt der Delegierten Verordnung (EU) 2025/301 entspricht – ohne dass
+Angaben doppelt erfasst werden müssen.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+> Die Anwendung unterstützt die Entscheidung, sie ersetzt sie nicht. Die
+> hinterlegten Schwellenwerte sind vor dem Produktiveinsatz gegen den
+> aktuellen Verordnungstext zu verifizieren, und eine Meldeschnittstelle der
+> BaFin ist nicht angebunden – die Übermittlung wird lokal quittiert.
+
+## Funktionen
+
+### Schritt 01 – Triage
+
+Handelt es sich überhaupt um einen IKT-bezogenen Vorfall, oder um ein
+gewöhnliches Support-Anliegen? Erfasst werden Beschreibung, betroffenes
+System, Melder und Symptome. Das Ergebnis ist eine Einschätzung mit
+Empfehlung, Begründung und Konfidenz: Vorfall, kein Vorfall (ServiceDesk)
+oder unklar.
+
+### Schritt 02 – Schweregrad
+
+Einstufung eines bestätigten Vorfalls als schwerwiegend nach den
+Klassifizierungskriterien der Delegierten Verordnung (EU) 2024/1772.
+
+- **Vorfragen zur Kritikalität der betroffenen Dienste** (Art. 6): Sind
+  kritische oder wichtige Funktionen betroffen, regulierte
+  Finanzdienstleistungen, oder liegt ein erfolgreicher böswilliger Zugriff
+  vor? Ohne erfüllten Tatbestand kann kein schwerwiegender Vorfall vorliegen
+  (Art. 8 Abs. 1) – das Formular sagt das sofort, statt erst am Ende.
+- **Böswilliger Zugriff mit möglichem Datenverlust** führt unmittelbar zur
+  Einstufung als schwerwiegend (Art. 8 Abs. 1 Buchst. a); die übrigen
+  Kriterien entfallen dann.
+- **Die übrigen sechs Kriterien als einzelne Schritte**, jeder ausfüllbar
+  oder als nicht zutreffend abzuhaken: betroffene Kunden, Gegenparteien und
+  Transaktionen · Dauer und Ausfallzeit · geografische Ausbreitung ·
+  Datenverluste · Reputationsauswirkung · wirtschaftliche Auswirkung. Die
+  Materialitätsschwellen (Art. 9) sind als auditierbare Regelbasis in
+  `src/lib/dora/criteria.ts` hinterlegt, nicht in der Bewertungslogik
+  versteckt.
+- **Referenzwerte aus dem Unternehmensprofil** – Kundenzahl, tägliche
+  Transaktionen, Mitgliedstaaten – erscheinen als Einordnungshilfe neben den
+  Eingaben.
+- **Plausibilitätshinweise** während der Eingabe, etwa wenn die Ausfallzeit
+  die Gesamtdauer übersteigt.
+- **Ergebnisseite** mit Gesamteinstufung, Befund je Kriterium, Begründung und
+  der daraus folgenden Meldepflicht samt Frist für die Erstmeldung.
+
+### Schritt 03 – Meldung
+
+Die Meldung nach Art. 19 DORA, inhaltlich nach der Delegierten Verordnung
+(EU) 2025/301.
+
+- **Zwei Meldungen** stehen zur Wahl: die Meldung eines schwerwiegenden
+  Vorfalls (Art. 19 Abs. 1) als Erst-, Zwischen- oder Abschlussmeldung, und
+  die freiwillige Meldung einer erheblichen Cyberbedrohung (Art. 19 Abs. 2)
+  mit ihrem eigenen, kürzeren Inhalt (Art. 6 der Verordnung).
+- **Nur die Angaben, die die jeweilige Meldung verlangt.** Art. 1 gilt für
+  alle drei Meldungen; Art. 2, 3 und 4 nennen die spezifischen Angaben genau
+  einer von ihnen. Eine Erstmeldung hat daher acht Abschnitte, eine
+  Zwischenmeldung zehn, eine Abschlussmeldung acht – keine wiederholt den
+  Inhalt der vorherigen.
+- **Vorbelegung aus Schritt 02:** die Einstufungskriterien, die zur Meldung
+  geführt haben, sowie betroffene Kunden, Dauer, Ausfallzeit, Datenverluste,
+  Reputationsbedingungen und Kosten finden sich an ihrer Stelle in der
+  Meldung wieder.
+- **Vorbelegung aus dem Unternehmensprofil:** Name, LEI, Art des
+  Finanzunternehmens, Ansprechpartner, Mutterunternehmen, Berichtswährung.
+  Die Felder bleiben änderbar; unveränderte folgen dem Profil, wenn es sich
+  später ändert.
+- **Fristen nach Art. 5:** Die Fälligkeit der Erstmeldung wird aus Erkennung
+  und Einstufung berechnet – vier Stunden nach der Einstufung, spätestens 24
+  Stunden nach der Kenntnisnahme, oder vier Stunden nach der Einstufung, wenn
+  diese erst später erfolgte (Abs. 2). Ist die Frist verstrichen, verlangt
+  das Formular die Gründe (Abs. 3). Fällt eine Folgefrist auf ein Wochenende,
+  verschiebt sie sich auf 12.00 Uhr des nächsten Arbeitstags – außer für
+  Kreditinstitute, zentrale Gegenparteien, Handelsplätze und nach NIS-2 als
+  wesentlich oder wichtig eingestufte Unternehmen (Abs. 4 und 5).
+- **Strukturierte Angaben** statt Freitext, wo die Verordnung eine Auswahl
+  nahelegt: Art der Erkennung, Ursprung des Vorfalls, betroffene
+  EWR-Mitgliedstaaten, Art des Vorfalls, Techniken des Angreifers,
+  Funktionsbereiche, benachrichtigte Behörden und die dreistufige Einstufung
+  der Ursachen (übergeordnet, detailliert, weitergehend). Die Wertelisten
+  stammen aus dem Datenglossar der Durchführungsverordnung (EU) 2025/302.
+- **Widerspruchsprüfung** vor dem Absenden: Zeitpunkte in unmöglicher
+  Reihenfolge, Einstufungskriterien ohne die Angaben, die sie belegen, eine
+  Auswahl „Sonstiges“ ohne Angabe welche, Detailursachen ohne ihre Kategorie.
+  Widersprüche verhindern die Übermittlung, Hinweise nicht. Dieselbe Prüfung
+  läuft in der API, nicht nur im Browser.
+- **LEI-Prüfung** nach ISO 17442 einschließlich der Prüfziffern (MOD 97-10),
+  mit der Angabe, was genau nicht stimmt.
+- **Quittung** mit Referenzcode, Zeitpunkt und den danach laufenden Fristen
+  für die nächste Meldung.
+
+### Unternehmensprofil
+
+Die Stammdaten des Finanzunternehmens werden einmal unter *Einstellungen*
+gepflegt: Identifikation (Name, Rechtsform, Art nach Art. 2 Abs. 1 DORA, LEI,
+BaFin-ID), Sitz und zuständige Behörde, Ansprechpartner, Mutterunternehmen,
+Berichtswährung, die NIS-2-Einstufung, die über die Fristenregelung
+entscheidet, sowie die Referenzwerte für die Materialitätsschwellen. Ein
+Beispielunternehmen ist vorbelegt.
+
+### Beispielszenarien
+
+Triage und Schweregrad bieten Szenarien zum Vorführen, die unterschiedliche
+Ergebnisse liefern – vom Ransomware-Verdacht bis zum vergessenen Passwort,
+vom schweren Ausfall bis zur kleineren Störung.
+
+### Datenhaltung
+
+Die Anwendung hält serverseitig keine Daten. Das Unternehmensprofil liegt im
+`localStorage` des Browsers, Entwürfe und Ergebnisse eines Vorgangs im
+`sessionStorage` – sie enden mit dem Tab. Der Server ist zustandslos; es gibt
+keine Datenbank und kein Volume.
+
+## Rechtsgrundlagen
+
+| Instrument | Rolle in der Anwendung |
+| --- | --- |
+| VO (EU) 2022/2554 (DORA), Art. 18–19 | Klassifizierungs- und Meldepflicht |
+| Delegierte VO (EU) 2024/1772 | Klassifizierungskriterien und Materialitätsschwellen (Schritt 02) |
+| Delegierte VO (EU) 2025/301 | Inhalt der Erst-, Zwischen- und Abschlussmeldung, Fristen, Inhalt der freiwilligen Meldung (Schritt 03) |
+| Durchführungsverordnung (EU) 2025/302 | Wertelisten der Auswahlfelder aus dem Datenglossar der Meldevorlage |
+
+Die Verordnungen sind im Code Feld für Feld zitiert; die Oberfläche selbst
+zeigt keine Fundstellen.
+
+## Technik
+
+| | |
+| --- | --- |
+| Framework | [Next.js 16](https://nextjs.org) (App Router, Turbopack), React 19, TypeScript 5 |
+| Oberfläche | Tailwind CSS 4, [shadcn/ui](https://ui.shadcn.com) auf [Base UI](https://base-ui.com), Lucide-Icons, Sonner für Hinweise |
+| Validierung | [Zod 4](https://zod.dev) – ein Schema je Meldung, von Formular und API gemeinsam genutzt |
+| Bewertung | Austauschbare Dienste hinter `src/lib/ai` (Triage, Schweregrad) und `src/lib/bafin` (Meldung); derzeit deterministische Regelwerke bzw. eine Simulation der Übermittlung |
+| Zustand | `useSyncExternalStore` über `localStorage` und `sessionStorage`; kein globaler Store |
+| Auslieferung | Docker, Next.js-Standalone-Ausgabe, Portainer-Stack hinter Traefik |
+
+Die Triage- und Schweregradbewertung laufen heute als regelbasierte
+Mock-Dienste. Die Schnittstellen in `src/lib/ai/types.ts` sind so
+geschnitten, dass eine KI-gestützte Bewertung eingehängt werden kann, ohne
+Oberfläche oder API zu ändern – sie bewertet dann anhand der hinterlegten
+Kriterien, nicht mit eigenen Schwellenwerten. Für die Meldung gilt dasselbe:
+`src/lib/bafin/index.ts` ist die Stelle, an der ein echter Konnektor die
+Simulation ersetzt.
+
+## Projektstruktur
+
+```
+src/
+  app/
+    triage/               Schritt 01 mit Ergebnisseite
+    severity/             Schritt 02 mit Ergebnisseite
+    meldung/              Schritt 03 mit Quittung
+    einstellungen/        Unternehmensprofil
+    api/                  triage, severity, report
+  lib/
+    dora/
+      criteria.ts         Klassifizierungskriterien und Schwellen (2024/1772)
+      reporting.ts        Meldearten, Fristen, Meldepflicht (2025/301 Art. 5)
+      report-fields.ts    Wertelisten der Meldung (2025/302, Anhang II)
+      report-checks.ts    Widerspruchsprüfung der Meldung
+    schemas.ts            Zod-Schemata aller drei Schritte
+    lei.ts                LEI-Prüfung nach ISO 17442
+    company/              Unternehmensprofil und dessen Speicher
+    ai/                   Triage- und Schweregraddienst (Mock)
+    bafin/                Meldedienst (Simulation)
+scripts/
+  test-severity.mjs       Prüft die Klassifizierung gegen die Schwellen
+  test-report.mjs         Prüft die Meldung gegen 2025/301
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Entwicklung
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Zwei Prüfskripte sprechen die laufende Anwendung über ihre API an und decken
+damit Schema, Route und Bewertungslogik gemeinsam ab:
+
+```bash
+npm run test:severity   # 21 Fälle zu Schwellen und Gesamteinstufung
+npm run test:report     # 43 Fälle zu Inhalt, Fristen und Widersprüchen
+```
+
+Beide nehmen `BASE_URL`, um eine andere Instanz zu prüfen – etwa den
+Container.
+
+```bash
+npm run lint
+npm run build
+```
+
+Der Build erzeugt neben dem regulären Produktionsstand, den `npm start`
+lokal ausliefert, auch die Standalone-Ausgabe unter `.next/standalone`, aus
+der das Container-Abbild entsteht. Wer das Abbild selbst ausprobieren will,
+findet die Befehle unter *Betrieb im Container*.
 
 ## Betrieb im Container
 
-Die Anwendung hält serverseitig keine Daten: Unternehmensprofil und
-Vorfallentwürfe liegen im Browser des Anwenders. Der Container ist damit
-zustandslos – er braucht kein Volume und keine Datenbank.
+Die `docker-compose.yml` ist der Stack für Portainer. Der Container hängt im
+bestehenden Traefik-Netzwerk `traefik` und veröffentlicht selbst keinen Port;
+Traefik erreicht ihn über Port 3000.
 
-### Portainer
+Unter **Stacks → Add stack** entweder das Repository angeben – Portainer baut
+das Abbild dann selbst – oder den Inhalt der `docker-compose.yml` in den
+Web-Editor einfügen. Einstellbar sind:
 
-Die `docker-compose.yml` ist die Stack-Datei. Sie enthält zwei Dienste:
-Traefik, das den Host-Port belegt, und die Anwendung, die Traefik über Port
-3000 im gemeinsamen Netzwerk erreicht.
+| Variable | Bedeutung |
+| --- | --- |
+| `APP_DOMAIN` | Hostname, unter dem die Anwendung erreichbar ist (Vorgabe in der Datei) |
+| `TZ` | Zeitzone im Container (Vorgabe: `Europe/Berlin`) |
 
-Unter **Stacks → Add stack** entweder
+Traefik leitet HTTP dauerhaft auf HTTPS um; der HTTPS-Router nutzt TLS und
+die Middleware `tinyauth@docker`, die der Anwendung eine Anmeldung
+vorschaltet. Beide – das Netzwerk und die Middleware – müssen in der
+Traefik-Installation bereits vorhanden sein.
 
-- **Repository** wählen und dieses Repository angeben – Portainer baut das
-  Abbild dann selbst –, oder
-- **Web editor** wählen und den Inhalt der `docker-compose.yml` einfügen.
+Das Abbild entsteht in drei Stufen und enthält am Ende nur die
+Standalone-Ausgabe von Next.js; es läuft unter einem Konto ohne besondere
+Rechte und bringt eine Zustandsprüfung mit, sodass Portainer den Container
+als *healthy* ausweist, sobald die Startseite ausgeliefert wird. Statische
+Dateien unter `public/` sind derzeit nicht Teil des Abbilds.
 
-Danach ist die Anwendung unter `http://<host>/` erreichbar – ohne Hostnamen und
-ohne Zertifikat. Im Abschnitt *Environment variables* lassen sich `HTTP_PORT`
-(Vorgabe: 80) und `TZ` (Vorgabe: Europe/Berlin) setzen.
-
-Auf der Kommandozeile entspricht das:
-
-```bash
-docker compose up -d --build
-```
-
-Der Container der Anwendung bringt eine Zustandsprüfung mit: Portainer zeigt
-ihn nach dem Start als *healthy*, sobald die Startseite ausgeliefert wird.
-
-Traefik routet alles unter `/` an die Anwendung; eine Aufteilung nach Pfaden
-erübrigt sich, weil Next.js die Seiten und `/api` aus demselben Prozess
-ausliefert. Weitere Anpassungen braucht die Anwendung hinter einem Proxy
-nicht: Sie spricht ihre eigene Schnittstelle über relative Pfade an und wertet
-weder Host- noch Weiterleitungs-Header aus.
-
-### Mehrere Stacks auf einem Host
-
-Läuft dort bereits ein Stack nach demselben Muster, belegt dessen Traefik den
-Port 80 und den Containernamen `traefik`. Dann entweder `HTTP_PORT` setzen und
-den Containernamen in der `docker-compose.yml` ändern – oder die Anwendung an
-den vorhandenen Traefik hängen: Dazu entfällt der Dienst `traefik`, das
-Netzwerk wird auf `external: true` gestellt, und der Anwendung kommt ein Label
-mit der Regel hinzu, unter der sie erreichbar sein soll, etwa
-
-```yaml
-- traefik.http.routers.ind-incident.rule=Host(`incident.example.org`)
-```
-
-### Abbild lokal ausprobieren
+Die Anwendung braucht hinter dem Proxy keine weitere Anpassung: Sie spricht
+ihre eigene Schnittstelle über relative Pfade an und wertet weder Host- noch
+Weiterleitungs-Header aus.
 
 Ohne Traefik – etwa um das Produktionsabbild vor dem Ausrollen anzusehen –
-genügen zwei Befehle; eine Compose-Datei braucht es dafür nicht:
+genügen zwei Befehle:
 
 ```bash
 docker build -t ind-incident .
 docker run --rm -p 3000:3000 ind-incident
-```
-
-### Fertiges Abbild ausliefern
-
-Statt in Portainer zu bauen, lässt sich das Abbild auch vorab erzeugen und in
-eine Registry schieben; in der `docker-compose.yml` tritt dann `image` an die
-Stelle von `build`.
-
-```bash
-docker build -t <registry>/ind-incident:<tag> .
-docker push <registry>/ind-incident:<tag>
-```
-
-### Prüfungen gegen den Container
-
-Beide Prüfskripte sprechen eine laufende Instanz an und funktionieren auch
-gegen den Container – auch durch Traefik hindurch:
-
-```bash
-BASE_URL=http://127.0.0.1 npm run test:severity
-BASE_URL=http://127.0.0.1 npm run test:report
 ```
