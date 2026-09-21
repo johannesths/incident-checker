@@ -12,6 +12,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { cn } from "@/lib/utils";
 import {
   REPORT_TYPE_BY_ID,
@@ -22,6 +23,8 @@ import {
   clearSession,
   useSessionValue,
 } from "@/lib/session-store";
+import { pdfFilename } from "@/lib/pdf/download";
+import type { ReportContent } from "@/lib/pdf/report-summary";
 import type { ReportReceipt } from "@/lib/schemas";
 
 const dateTimeFormat = new Intl.DateTimeFormat("de-DE", {
@@ -37,6 +40,11 @@ function formatDateTime(iso: string): string {
 export default function ReportConfirmationPage() {
   const router = useRouter();
   const receipt = useSessionValue<ReportReceipt>(STORAGE_KEYS.reportReceipt);
+  // Der Inhalt der Meldung liegt im Entwurf, der bis zur nächsten Meldung
+  // erhalten bleibt; die Quittung allein nennt ihn nicht. Nur lesend berührt.
+  const draft = useSessionValue<{ form?: ReportContent }>(
+    STORAGE_KEYS.reportDraft,
+  );
 
   function startOver() {
     clearSession(STORAGE_KEYS.reportDraft, STORAGE_KEYS.reportReceipt);
@@ -162,6 +170,28 @@ export default function ReportConfirmationPage() {
           <ArrowLeft className="size-4" />
           Angaben ändern
         </Link>
+        <PdfDownloadButton
+          filename={pdfFilename(
+            [
+              reportType ? reportType.label : "Meldung-Cyberbedrohung",
+              receipt.incidentReferenceCode,
+            ],
+            new Date(),
+          )}
+          buildDocument={async () => {
+            const { ReportSummaryPdf } = await import(
+              "@/lib/pdf/report-summary"
+            );
+            return (
+              <ReportSummaryPdf
+                kind={receipt.kind}
+                form={draft?.form}
+                receipt={receipt}
+                generatedAt={new Date()}
+              />
+            );
+          }}
+        />
         <Button variant="ghost" onClick={startOver}>
           <RotateCcw className="size-4" />
           Neue Meldung

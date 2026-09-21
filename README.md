@@ -51,6 +51,8 @@ Klassifizierungskriterien der Delegierten Verordnung (EU) 2024/1772.
   die Gesamtdauer übersteigt.
 - **Ergebnisseite** mit Gesamteinstufung, Befund je Kriterium, Begründung und
   der daraus folgenden Meldepflicht samt Frist für die Erstmeldung.
+- **Zusammenfassung als PDF:** Einstufung, Meldepflicht, Befund je Kriterium
+  und die erfassten Angaben, zum Ablegen oder Weitergeben.
 
 ### Schritt 03 – Meldung
 
@@ -97,6 +99,8 @@ Die Meldung nach Art. 19 DORA, inhaltlich nach der Delegierten Verordnung
   mit der Angabe, was genau nicht stimmt.
 - **Quittung** mit Referenzcode, Zeitpunkt und den danach laufenden Fristen
   für die nächste Meldung.
+- **Meldung als PDF:** Quittung, Fristen und der übermittelte Inhalt in der
+  Reihenfolge der Artikel, die die jeweilige Meldung verlangt.
 
 ### Unternehmensprofil
 
@@ -118,7 +122,8 @@ vom schweren Ausfall bis zur kleineren Störung.
 Die Anwendung hält serverseitig keine Daten. Das Unternehmensprofil liegt im
 `localStorage` des Browsers, Entwürfe und Ergebnisse eines Vorgangs im
 `sessionStorage` – sie enden mit dem Tab. Der Server ist zustandslos; es gibt
-keine Datenbank und kein Volume.
+keine Datenbank und kein Volume. Auch die PDF-Zusammenfassungen entstehen im
+Browser; ihre Daten verlassen ihn nicht.
 
 ## Rechtsgrundlagen
 
@@ -141,6 +146,7 @@ zeigt keine Fundstellen.
 | Validierung | [Zod 4](https://zod.dev) – ein Schema je Meldung, von Formular und API gemeinsam genutzt |
 | Bewertung | Austauschbare Dienste hinter `src/lib/ai` (Triage, Schweregrad) und `src/lib/bafin` (Meldung); derzeit deterministische Regelwerke bzw. eine Simulation der Übermittlung |
 | Zustand | `useSyncExternalStore` über `localStorage` und `sessionStorage`; kein globaler Store |
+| PDF | [`@react-pdf/renderer`](https://react-pdf.org), im Browser und erst beim Klick geladen |
 | Auslieferung | Docker, Next.js-Standalone-Ausgabe, Portainer-Stack hinter Traefik |
 
 Die Triage- und Schweregradbewertung laufen heute als regelbasierte
@@ -170,6 +176,7 @@ src/
     schemas.ts            Zod-Schemata aller drei Schritte
     lei.ts                LEI-Prüfung nach ISO 17442
     company/              Unternehmensprofil und dessen Speicher
+    pdf/                  PDF-Zusammenfassungen von Einstufung und Meldung
     ai/                   Triage- und Schweregraddienst (Mock)
     bafin/                Meldedienst (Simulation)
 scripts/

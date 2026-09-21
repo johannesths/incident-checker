@@ -13,6 +13,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { PdfDownloadButton } from "@/components/pdf-download-button";
 import { cn } from "@/lib/utils";
 import { CRITERION_BY_ID } from "@/lib/dora/criteria";
 import { CLASSIFICATION } from "@/lib/dora/presentation";
@@ -25,11 +26,20 @@ import {
   clearSession,
   useSessionValue,
 } from "@/lib/session-store";
+import { useCompanyProfile } from "@/lib/company/store";
+import { pdfFilename } from "@/lib/pdf/download";
+import type { SeveritySnapshot } from "@/lib/pdf/severity-summary";
 import type { SeverityResult } from "@/lib/schemas";
 
 export default function SeverityResultPage() {
   const router = useRouter();
   const result = useSessionValue<SeverityResult>(STORAGE_KEYS.severityResult);
+  // Die erfassten Angaben gehören mit in die PDF-Zusammenfassung; der Entwurf
+  // wird ausschließlich lesend berührt.
+  const snapshot = useSessionValue<SeveritySnapshot>(
+    STORAGE_KEYS.severityDraft,
+  );
+  const profile = useCompanyProfile();
 
   function startOver() {
     clearSession(STORAGE_KEYS.severityDraft, STORAGE_KEYS.severityResult);
@@ -209,6 +219,22 @@ export default function SeverityResultPage() {
           <ArrowLeft className="size-4" />
           Eingaben ändern
         </Link>
+        <PdfDownloadButton
+          filename={pdfFilename(["Einstufung"], new Date())}
+          buildDocument={async () => {
+            const { SeveritySummaryPdf } = await import(
+              "@/lib/pdf/severity-summary"
+            );
+            return (
+              <SeveritySummaryPdf
+                result={result}
+                snapshot={snapshot}
+                profile={profile}
+                generatedAt={new Date()}
+              />
+            );
+          }}
+        />
         <Button variant="ghost" onClick={startOver}>
           <RotateCcw className="size-4" />
           Neue Bewertung
