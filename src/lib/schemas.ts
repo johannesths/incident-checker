@@ -29,7 +29,10 @@ import {
 import { ENTITY_TYPES, type EntityType } from "@/lib/company/profile";
 import { isValidLei } from "@/lib/lei";
 
-const criterionIds = DORA_CRITERIA.map((c) => c.id) as [CriterionId, ...CriterionId[]];
+const criterionIds = DORA_CRITERIA.map((c) => c.id) as [
+  CriterionId,
+  ...CriterionId[],
+];
 
 const dataLossIds = DATA_LOSS_DIMENSIONS.map((d) => d.id) as [
   DataLossDimension,
@@ -125,7 +128,9 @@ export type TriageResult = z.infer<typeof triageResultSchema>;
 
 export const severityInputSchema = z.object({
   /** Verweis/Zusammenfassung des Vorfalls (z. B. aus der Triage übernommen). */
-  description: z.string().min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
+  description: z
+    .string()
+    .min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
   /** Anzahl betroffener Kunden (absolut, Art. 9 Abs. 1 Buchst. b RTS). */
   clientsAffected: z.coerce.number().min(0).optional(),
   /** Anteil betroffener Kunden in Prozent der Nutzer des betroffenen Dienstes (Buchst. a). */
@@ -217,6 +222,124 @@ export const severityInputSchema = z.object({
 
 export type SeverityInput = z.infer<typeof severityInputSchema>;
 
+/* ---------------------------------------------------------------------------
+ * Übernahme der Angaben aus einer Beschreibung
+ *
+ * Das Modell liest die Beschreibung und trägt die Angaben zusammen, die die
+ * Kriterien verlangen; es bewertet sie nicht. Über Schwellen und Einstufung
+ * entscheidet allein die Regelbasis (siehe @/lib/dora/criteria) – das Modell
+ * kennt die Schwellenwerte nicht einmal.
+ * ------------------------------------------------------------------------- */
+
+/** Felder, die aus einer Beschreibung übernommen werden können. */
+export const SEVERITY_EXTRACTION_FIELDS = [
+  "description",
+  "criticalFunctionAffected",
+  "regulatedServicesAffected",
+  "maliciousUnauthorizedAccess",
+  "maliciousAccessDataLossPossible",
+  "clientsAffected",
+  "clientsAffectedPercent",
+  "counterpartsAffectedPercent",
+  "transactionsCountPercent",
+  "transactionsValuePercent",
+  "relevantClientsAffected",
+  "durationHours",
+  "downtimeHours",
+  "memberStatesAffected",
+  "geoImpactAreas",
+  "dataLossDimensions",
+  "dataLossAdverseImpact",
+  "reputationalImpactConditions",
+  "economicImpactEur",
+] as const;
+
+export type SeverityExtractionField =
+  (typeof SEVERITY_EXTRACTION_FIELDS)[number];
+
+/**
+ * Die übernommenen Angaben in der Form des Formulars: Zahlen als Text, damit
+ * ein leeres Feld ("keine Angabe") von einer 0 unterscheidbar bleibt, und
+ * `null` bei den Ja/Nein-Angaben, wenn die Beschreibung nichts hergibt.
+ */
+export const severityExtractionValuesSchema = z.object({
+  /** Knappe, sachliche Fassung des Sachverhalts für das Formular. */
+  description: z.string(),
+  criticalFunctionAffected: z.boolean().nullable(),
+  regulatedServicesAffected: z.boolean().nullable(),
+  maliciousUnauthorizedAccess: z.boolean().nullable(),
+  maliciousAccessDataLossPossible: z.boolean().nullable(),
+  clientsAffected: z.string(),
+  clientsAffectedPercent: z.string(),
+  counterpartsAffectedPercent: z.string(),
+  transactionsCountPercent: z.string(),
+  transactionsValuePercent: z.string(),
+  relevantClientsAffected: z.boolean(),
+  durationHours: z.string(),
+  downtimeHours: z.string(),
+  memberStatesAffected: z.string(),
+  geoImpactAreas: z.array(z.enum(geoImpactIds)),
+  dataLossDimensions: z.array(z.enum(dataLossIds)),
+  dataLossAdverseImpact: z.boolean().nullable(),
+  reputationalImpactConditions: z.array(z.enum(reputationIds)),
+  economicImpactEur: z.string(),
+});
+
+export type SeverityExtractionValues = z.infer<
+  typeof severityExtractionValuesSchema
+>;
+
+export const severityExtractionSchema = z.object({
+  values: severityExtractionValuesSchema,
+  /**
+   * Felder, bei denen die Beschreibung keine sichere Angabe hergab – die
+   * Oberfläche kennzeichnet sie, damit der Mensch sie prüft.
+   */
+  uncertain: z.array(z.enum(SEVERITY_EXTRACTION_FIELDS)),
+  /** Was der Beschreibung fehlt oder woran das Modell sich gehalten hat. */
+  notes: z.string(),
+  /** Die Beschreibung enthielt Anweisungen an ein KI-System. */
+  manipulationDetected: z.boolean(),
+  /** Modell, das die Angaben zusammengetragen hat. */
+  model: z.string(),
+});
+
+export type SeverityExtraction = z.infer<typeof severityExtractionSchema>;
+
+/**
+ * Die Fragen, aus denen übernommen wird. Fünf statt einer, weil ein einzelnes
+ * Feld nicht daran erinnert, woran die Kriterien hängen: Wer eine Störung
+ * schildert, schreibt selten von sich aus etwas zur Ausfallzeit oder zur
+ * Sichtbarkeit nach außen. Nur die erste Frage ist erforderlich; was offen
+ * bleibt, bleibt auch im Formular offen.
+ */
+const answer = (max: number) =>
+  z
+    .string()
+    .max(max, `Die Angabe ist zu lang (max. ${max / 1000}.000 Zeichen).`)
+    .optional()
+    .default("");
+
+export const severityExtractionInputSchema = z.object({
+  /** Was ist passiert? */
+  incident: z
+    .string()
+    .min(20, "Bitte beschreiben Sie den Vorfall (mind. 20 Zeichen).")
+    .max(10_000, "Die Angabe ist zu lang (max. 10.000 Zeichen)."),
+  /** Betroffene Dienste und Systeme, Kritikalität (Art. 6 RTS). */
+  services: answer(5_000),
+  /** Betroffene Kunden, Gegenparteien, Mitgliedstaaten (Art. 1 und 4 RTS). */
+  affected: answer(5_000),
+  /** Zeitpunkte, Dauer, Ausfallzeit (Art. 3 RTS). */
+  timing: answer(5_000),
+  /** Daten und Sichtbarkeit nach außen (Art. 2 und 5 RTS). */
+  dataAndReputation: answer(5_000),
+});
+
+export type SeverityExtractionInput = z.infer<
+  typeof severityExtractionInputSchema
+>;
+
 export const criterionFindingSchema = z.object({
   criterionId: z.enum(criterionIds),
   /** Ist die Materialitätsschwelle dieses Kriteriums erreicht? */
@@ -251,7 +374,8 @@ export type SeverityResult = z.infer<typeof severityResultSchema>;
  * leeres Feld ("keine Angabe") von einer 0 unterscheidbar bleibt.
  * ------------------------------------------------------------------------- */
 
-const LEI_MESSAGE = "Bitte geben Sie einen gültigen LEI an (20 Zeichen, Prüfziffern nach ISO 17442).";
+const LEI_MESSAGE =
+  "Bitte geben Sie einen gültigen LEI an (20 Zeichen, Prüfziffern nach ISO 17442).";
 
 /** Pflichtangabe eines LEI-Codes (ISO 17442). */
 const leiSchema = z.string().refine(isValidLei, LEI_MESSAGE);
@@ -331,9 +455,7 @@ const enumIds = <T extends readonly { id: string }[]>(items: T) =>
 
 export const generalInformationSchema = z.object({
   /** Art. 1 Buchst. b: Name des meldenden Finanzunternehmens. */
-  entityName: z
-    .string()
-    .min(1, "Bitte geben Sie das Finanzunternehmen an."),
+  entityName: z.string().min(1, "Bitte geben Sie das Finanzunternehmen an."),
   /** Art. 1 Buchst. b: LEI-Code des Finanzunternehmens. */
   entityLei: leiSchema,
   /** Art. 1 Buchst. b: Art des Finanzunternehmens (Art. 2 Abs. 1 DORA). */
@@ -358,10 +480,15 @@ export const generalInformationSchema = z.object({
   primaryContactName: z
     .string()
     .min(1, "Bitte geben Sie eine verantwortliche Person an."),
-  primaryContactEmail: z.email("Bitte geben Sie eine gültige E-Mail-Adresse an."),
+  primaryContactEmail: z.email(
+    "Bitte geben Sie eine gültige E-Mail-Adresse an.",
+  ),
   primaryContactPhone: z
     .string()
-    .min(1, "Bitte geben Sie eine Telefonnummer mit internationaler Vorwahl an."),
+    .min(
+      1,
+      "Bitte geben Sie eine Telefonnummer mit internationaler Vorwahl an.",
+    ),
   secondContactName: optionalText,
   secondContactEmail: optionalEmail,
   secondContactPhone: optionalText,
@@ -479,7 +606,10 @@ export const reportInputSchema = generalInformationSchema.extend({
   criticalServicesDescription: optionalText,
 
   /** Buchst. e: Art des IKT-bezogenen Vorfalls. */
-  incidentTypes: z.array(z.enum(enumIds(INCIDENT_TYPES))).optional().default([]),
+  incidentTypes: z
+    .array(z.enum(enumIds(INCIDENT_TYPES)))
+    .optional()
+    .default([]),
   incidentTypeOther: optionalText,
   /** Buchst. f: vom Angreifer artikulierte Bedrohungen und eingesetzte Techniken. */
   threatTechniques: z

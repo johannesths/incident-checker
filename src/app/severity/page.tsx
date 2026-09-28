@@ -8,11 +8,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ClipboardList,
   Loader2,
   Minus,
   RotateCcw,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Wand2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,7 +50,19 @@ import {
   updateSession,
   useSessionValue,
 } from "@/lib/session-store";
-import type { SeverityResult } from "@/lib/schemas";
+import type {
+  SeverityExtraction,
+  SeverityExtractionField,
+  SeverityExtractionInput,
+  SeverityResult,
+} from "@/lib/schemas";
+import { claudeModelLabel } from "@/lib/ai/models";
+import { useAiAvailability } from "@/lib/ai/use-availability";
+import {
+  activeAnthropicApiKey,
+  aiRequestHeaders,
+} from "@/lib/credentials/credentials";
+import { useCredentials } from "@/lib/credentials/store";
 
 interface FormState {
   description: string;
@@ -303,7 +318,9 @@ const STEPS: StepDef[] = [
     title: "Reputationsauswirkung",
     hint: "Schwelle erreicht, sobald mindestens eine Bedingung erfüllt ist – auch die zu erwartende Sichtbarkeit des Vorfalls zählt.",
     summary: (f) =>
-      labelsOf(REPUTATION_CONDITIONS, f.reputationalImpactConditions).join(", "),
+      labelsOf(REPUTATION_CONDITIONS, f.reputationalImpactConditions).join(
+        ", ",
+      ),
     clear: (f) => ({ ...f, reputationalImpactConditions: [] }),
   },
   {
@@ -335,7 +352,21 @@ function nextStepId(id: StepId): StepId | null {
  * Bearbeitungsstand
  * ------------------------------------------------------------------------- */
 
-type Stage = "questions" | "form";
+/**
+ * "start": Angaben selbst erfassen oder aus einer Beschreibung übernehmen.
+ * "extract": die Fragen, aus deren Antworten übernommen wird. Danach wie bisher:
+ * die Vorfragen, dann die Kriterien.
+ */
+type Stage = "start" | "extract" | "questions" | "form";
+
+/** Was aus den Antworten übernommen wurde – für Hinweis und Markierung. */
+interface ExtractionState {
+  /** Felder, bei denen das Modell unsicher war; eine eigene Eingabe streicht sie. */
+  uncertain: SeverityExtractionField[];
+  notes: string;
+  manipulationDetected: boolean;
+  model: string;
+}
 
 /** Im sessionStorage gesicherter Bearbeitungsstand. */
 interface SeverityDraft {
@@ -346,15 +377,18 @@ interface SeverityDraft {
   stepStatus: Record<StepId, StepStatus>;
   /** Aktuell aufgeklappter Schritt; null = alle eingeklappt. */
   activeStep: StepId | null;
+  /** null, solange nichts übernommen wurde. */
+  extraction: ExtractionState | null;
 }
 
 const initialDraft: SeverityDraft = {
-  stage: "questions",
+  stage: "start",
   gateAnswers: noGateAnswers,
   dataLossAnswer: null,
   form: initial,
   stepStatus: initialStatus,
   activeStep: "description",
+  extraction: null,
 };
 
 /** Ergänzt einen gespeicherten Stand um zwischenzeitlich neue Felder. */
@@ -364,6 +398,184 @@ function withDefaults(draft: SeverityDraft | null | undefined): SeverityDraft {
     ...initialDraft,
     ...draft,
     stepStatus: { ...initialStatus, ...draft.stepStatus },
+    extraction: draft.extraction ?? null,
+  };
+}
+
+/**
+ * Die Fragen, aus denen übernommen wird. Fünf statt einer: Ein einzelnes Feld
+ * erinnert nicht daran, woran die Kriterien hängen – wer eine Störung
+ * schildert, schreibt selten von sich aus etwas zur Ausfallzeit oder zur
+ * Sichtbarkeit nach außen. Nur die erste Frage ist erforderlich.
+ */
+const EXTRACTION_QUESTIONS: {
+  key: keyof SeverityExtractionInput;
+  label: string;
+  placeholder: string;
+  rows: number;
+  required?: boolean;
+  max: number;
+}[] = [
+  {
+    key: "incident",
+    label: "Was ist passiert?",
+    placeholder:
+      "Hergang und Ursache, soweit bekannt. Auch Protokollauszüge oder E-Mails können enthalten sein.",
+    rows: 7,
+    required: true,
+    max: 10_000,
+  },
+  {
+    key: "services",
+    label:
+      "Welche Dienste und Systeme sind betroffen – unterstützen sie kritische oder wichtige Funktionen?",
+    placeholder:
+      "Betroffene Anwendungen und Systeme; ob darüber regulierte Finanzdienstleistungen erbracht werden.",
+    rows: 3,
+    max: 5_000,
+  },
+  {
+    key: "affected",
+    label: "Wer ist betroffen – Kunden, Gegenparteien, andere Mitgliedstaaten?",
+    placeholder:
+      "Zahl oder Anteil betroffener Kunden und Gegenparteien, betroffene Transaktionen, Länder.",
+    rows: 3,
+    max: 5_000,
+  },
+  {
+    key: "timing",
+    label: "Seit wann, wie lange, und was war nicht verfügbar?",
+    placeholder:
+      "Eintritt, Entdeckung, Behebung; Dauer der Störung und Zeit der Nichtverfügbarkeit.",
+    rows: 3,
+    max: 5_000,
+  },
+  {
+    key: "dataAndReputation",
+    label:
+      "Was ist mit Daten geschehen, und was ist nach außen sichtbar geworden?",
+    placeholder:
+      "Verlust, Veränderung oder Offenlegung von Daten; Beschwerden, Medienberichte, Folgen für regulatorische Pflichten; bekannte Kosten.",
+    rows: 3,
+    max: 5_000,
+  },
+];
+
+const noAnswers: SeverityExtractionInput = {
+  incident: "",
+  services: "",
+  affected: "",
+  timing: "",
+  dataAndReputation: "",
+};
+
+const MIN_EXTRACTION_LENGTH = 20;
+
+/** Welche Felder zu welchem Schritt gehören – für die Markierung am Schritt. */
+const STEP_FIELDS: Record<StepId, SeverityExtractionField[]> = {
+  description: ["description"],
+  clients: [
+    "clientsAffected",
+    "clientsAffectedPercent",
+    "counterpartsAffectedPercent",
+    "transactionsCountPercent",
+    "transactionsValuePercent",
+    "relevantClientsAffected",
+  ],
+  duration: ["durationHours", "downtimeHours"],
+  geography: ["memberStatesAffected", "geoImpactAreas"],
+  dataLoss: ["dataLossDimensions", "dataLossAdverseImpact"],
+  reputation: ["reputationalImpactConditions"],
+  economic: ["economicImpactEur"],
+};
+
+/**
+ * Hat die Übernahme zu diesem Feld etwas ergeben? Ein leerer Text, eine leere
+ * Auswahl und ein nicht gesetztes Ja/Nein zählen als "nichts" – false bei den
+ * Schaltern ebenso, weil das Modell dort nicht zwischen "nein" und "steht
+ * nicht da" unterscheidet.
+ */
+function fieldFilled(form: FormState, field: SeverityExtractionField): boolean {
+  if (!(field in form)) return false;
+  const value = form[field as keyof FormState];
+  if (typeof value === "string") return value.trim() !== "";
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "boolean") return value;
+  return value !== null;
+}
+
+/** Die Vorfragen als Felder der Übernahme. */
+const GATE_FIELDS: SeverityExtractionField[] = [
+  "criticalFunctionAffected",
+  "regulatedServicesAffected",
+  "maliciousUnauthorizedAccess",
+  "maliciousAccessDataLossPossible",
+];
+
+/**
+ * Übernimmt die Angaben in den Bearbeitungsstand. Die Vorfragen gehen durch
+ * die Bestätigung des Menschen: Ohne einen Tatbestand des Art. 6 RTS liegt
+ * nie ein schwerwiegender Vorfall vor – das soll niemand aus einem Text
+ * übernommen bekommen, ohne es gesehen zu haben.
+ */
+function draftFromExtraction(extraction: SeverityExtraction): SeverityDraft {
+  const v = extraction.values;
+  const form: FormState = {
+    ...initial,
+    description: v.description,
+    clientsAffected: v.clientsAffected,
+    clientsAffectedPercent: v.clientsAffectedPercent,
+    counterpartsAffectedPercent: v.counterpartsAffectedPercent,
+    transactionsCountPercent: v.transactionsCountPercent,
+    transactionsValuePercent: v.transactionsValuePercent,
+    relevantClientsAffected: v.relevantClientsAffected,
+    durationHours: v.durationHours,
+    downtimeHours: v.downtimeHours,
+    memberStatesAffected: v.memberStatesAffected,
+    geoImpactAreas: [...v.geoImpactAreas],
+    dataLossDimensions: [...v.dataLossDimensions],
+    dataLossAdverseImpact: v.dataLossAdverseImpact,
+    reputationalImpactConditions: [...v.reputationalImpactConditions],
+    economicImpactEur: v.economicImpactEur,
+    criticalFunctionAffected: v.criticalFunctionAffected === true,
+    regulatedServicesAffected: v.regulatedServicesAffected === true,
+    maliciousUnauthorizedAccess: v.maliciousUnauthorizedAccess === true,
+    maliciousAccessDataLossPossible: v.maliciousAccessDataLossPossible === true,
+  };
+  const stepStatus = Object.fromEntries(
+    STEPS.map((step) => [
+      step.id,
+      STEP_FIELDS[step.id].some((field) => fieldFilled(form, field))
+        ? "done"
+        : "pending",
+    ]),
+  ) as Record<StepId, StepStatus>;
+
+  return {
+    stage: "questions",
+    gateAnswers: {
+      criticalFunctionAffected: v.criticalFunctionAffected,
+      regulatedServicesAffected: v.regulatedServicesAffected,
+      maliciousUnauthorizedAccess: v.maliciousUnauthorizedAccess,
+    },
+    dataLossAnswer:
+      v.maliciousUnauthorizedAccess === true
+        ? v.maliciousAccessDataLossPossible
+        : null,
+    form,
+    // Bearbeitet ist nur, wozu die Antworten etwas hergaben. Ein Kriterium
+    // ohne Angabe bleibt offen: Es geht sonst als "Schwelle nicht erreicht" in
+    // die Einstufung ein, ohne dass jemand hingesehen hätte.
+    stepStatus,
+    // Beim ersten offenen Kriterium weitermachen.
+    activeStep:
+      STEPS.find((step) => stepStatus[step.id] === "pending")?.id ?? null,
+    extraction: {
+      uncertain: extraction.uncertain,
+      notes: extraction.notes,
+      manipulationDetected: extraction.manipulationDetected,
+      model: extraction.model,
+    },
   };
 }
 
@@ -379,6 +591,23 @@ export default function SeverityPage() {
   );
   const { stage, gateAnswers, dataLossAnswer, form, stepStatus, activeStep } =
     draft;
+  const extraction = draft.extraction;
+
+  // Für die Übernahme aus einer Beschreibung: Schlüssel aus dem Browser oder
+  // aus der Umgebung des Servers.
+  const credentials = useCredentials();
+  const availability = useAiAvailability("/api/severity/extract");
+  const aiReady = Boolean(
+    (credentials && activeAnthropicApiKey(credentials)) ||
+    availability?.serverKey,
+  );
+  const [answers, setAnswers] = useState<SeverityExtractionInput>(noAnswers);
+  const [extracting, setExtracting] = useState(false);
+  // Derselbe Sachverhalt steht oft schon in der Triage; nur lesend berührt.
+  const triageDraft = useSessionValue<{ description?: string }>(
+    STORAGE_KEYS.triageDraft,
+  );
+  const triageDescription = triageDraft?.description?.trim() ?? "";
 
   function patch(fn: (d: SeverityDraft) => SeverityDraft) {
     updateSession<SeverityDraft>(
@@ -393,9 +622,30 @@ export default function SeverityPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     updateForm((f) => ({ ...f, [key]: value }));
+    // Was der Mensch selbst eingetragen hat, ist nicht mehr die unsichere
+    // Angabe des Modells.
+    confirmField(key as SeverityExtractionField);
+  }
+
+  /** Nimmt die Markierung von einem Feld, sobald jemand es selbst setzt. */
+  function confirmField(...fields: SeverityExtractionField[]) {
+    patch((d) =>
+      d.extraction === null
+        ? d
+        : {
+            ...d,
+            extraction: {
+              ...d.extraction,
+              uncertain: d.extraction.uncertain.filter(
+                (f) => !fields.includes(f),
+              ),
+            },
+          },
+    );
   }
 
   function toggleGeoArea(id: GeoImpactArea) {
+    confirmField("geoImpactAreas");
     updateForm((f) => ({
       ...f,
       geoImpactAreas: f.geoImpactAreas.includes(id)
@@ -405,6 +655,7 @@ export default function SeverityPage() {
   }
 
   function toggleReputation(id: ReputationCondition) {
+    confirmField("reputationalImpactConditions");
     updateForm((f) => ({
       ...f,
       reputationalImpactConditions: f.reputationalImpactConditions.includes(id)
@@ -414,6 +665,7 @@ export default function SeverityPage() {
   }
 
   function toggleDataLoss(id: DataLossDimension) {
+    confirmField("dataLossDimensions");
     updateForm((f) => {
       const dataLossDimensions = f.dataLossDimensions.includes(id)
         ? f.dataLossDimensions.filter((x) => x !== id)
@@ -431,6 +683,43 @@ export default function SeverityPage() {
 
   function reset() {
     clearSession(STORAGE_KEYS.severityDraft, STORAGE_KEYS.severityResult);
+    setAnswers(noAnswers);
+  }
+
+  /* --- Übernahme aus einer Beschreibung ----------------------------------- */
+
+  /** Beginnt die Erfassung von Hand; die Vorfragen stehen wie bisher am Anfang. */
+  function startManually() {
+    patch((d) => ({ ...d, stage: "questions" }));
+  }
+
+  async function onExtract(e: React.SyntheticEvent) {
+    e.preventDefault();
+    setExtracting(true);
+    try {
+      const res = await fetch("/api/severity/extract", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(credentials ? aiRequestHeaders(credentials) : {}),
+        },
+        body: JSON.stringify(answers),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Die Übernahme ist fehlgeschlagen.");
+      }
+      const extracted = (await res.json()) as SeverityExtraction;
+      saveSession<SeverityDraft>(
+        STORAGE_KEYS.severityDraft,
+        draftFromExtraction(extracted),
+      );
+      toast.success("Angaben übernommen – bitte prüfen.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unbekannter Fehler.");
+    } finally {
+      setExtracting(false);
+    }
   }
 
   /* --- Schrittsteuerung --------------------------------------------------- */
@@ -487,6 +776,7 @@ export default function SeverityPage() {
 
   // Vorfragen 1a–c: Tatbestände des Art. 6 RTS (Kritikalität der Dienste).
   function answerGate(key: GateKey, value: boolean) {
+    confirmField(key);
     patch((d) => {
       const answers = { ...d.gateAnswers, [key]: value };
       // Entfällt die Vorfrage c, entfällt auch die Zusatzfrage dazu.
@@ -510,6 +800,7 @@ export default function SeverityPage() {
 
   // Vorfrage 2: Kann der böswillige Zugriff zu Datenverlusten führen?
   function answerDataLoss(value: boolean) {
+    confirmField("maliciousAccessDataLossPossible");
     patch((d) => ({
       ...d,
       dataLossAnswer: value,
@@ -524,7 +815,8 @@ export default function SeverityPage() {
       void classify({
         description: INSTANT_DESCRIPTION,
         criticalFunctionAffected: gateAnswers.criticalFunctionAffected === true,
-        regulatedServicesAffected: gateAnswers.regulatedServicesAffected === true,
+        regulatedServicesAffected:
+          gateAnswers.regulatedServicesAffected === true,
         maliciousUnauthorizedAccess: true,
         maliciousAccessDataLossPossible: true,
       });
@@ -545,6 +837,7 @@ export default function SeverityPage() {
       form: data,
       stepStatus: allDoneStatus,
       activeStep: null,
+      extraction: null,
     });
   }
 
@@ -570,21 +863,35 @@ export default function SeverityPage() {
     switch (id) {
       case "description":
         return (
-          <Textarea
-            id="description"
-            rows={4}
-            placeholder="Was ist passiert?"
-            aria-label="Vorfallbeschreibung"
-            value={form.description}
-            onChange={(e) => update("description", e.target.value)}
-          />
+          <div className="space-y-2">
+            {isUncertain("description") && (
+              <p className="text-xs">
+                <span className="text-muted-foreground">
+                  Aus der Beschreibung zusammengefasst
+                </span>
+                <UncertainMark />
+              </p>
+            )}
+            <Textarea
+              id="description"
+              rows={4}
+              placeholder="Was ist passiert?"
+              aria-label="Vorfallbeschreibung"
+              value={form.description}
+              onChange={(e) => update("description", e.target.value)}
+            />
+          </div>
         );
 
       case "clients":
         return (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Kunden (Anzahl)" htmlFor="clientsAffected">
+              <Field
+                label="Kunden (Anzahl)"
+                htmlFor="clientsAffected"
+                uncertain={isUncertain("clientsAffected")}
+              >
                 <Input
                   id="clientsAffected"
                   type="number"
@@ -597,6 +904,7 @@ export default function SeverityPage() {
               <Field
                 label="Kunden (% der Dienstnutzer)"
                 htmlFor="clientsAffectedPercent"
+                uncertain={isUncertain("clientsAffectedPercent")}
               >
                 <Input
                   id="clientsAffectedPercent"
@@ -613,6 +921,7 @@ export default function SeverityPage() {
               <Field
                 label="Finanzielle Gegenparteien (%)"
                 htmlFor="counterpartsAffectedPercent"
+                uncertain={isUncertain("counterpartsAffectedPercent")}
               >
                 <Input
                   id="counterpartsAffectedPercent"
@@ -629,6 +938,7 @@ export default function SeverityPage() {
               <Field
                 label="Transaktionen (% der tägl. Ø-Anzahl)"
                 htmlFor="transactionsCountPercent"
+                uncertain={isUncertain("transactionsCountPercent")}
               >
                 <Input
                   id="transactionsCountPercent"
@@ -644,6 +954,7 @@ export default function SeverityPage() {
               <Field
                 label="Transaktionswert (% des tägl. Ø-Werts)"
                 htmlFor="transactionsValuePercent"
+                uncertain={isUncertain("transactionsValuePercent")}
               >
                 <Input
                   id="transactionsValuePercent"
@@ -666,6 +977,12 @@ export default function SeverityPage() {
             >
               Relevante Kunden/Gegenparteien betroffen
             </TogglePill>
+            {isUncertain("relevantClientsAffected") && (
+              <p className="text-xs text-muted-foreground">
+                Aus der Beschreibung erschlossen
+                <UncertainMark />
+              </p>
+            )}
             {profile && <ProfileReference profile={profile} />}
           </>
         );
@@ -674,7 +991,11 @@ export default function SeverityPage() {
         return (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Dauer (Stunden)" htmlFor="durationHours">
+              <Field
+                label="Dauer (Stunden)"
+                htmlFor="durationHours"
+                uncertain={isUncertain("durationHours")}
+              >
                 <Input
                   id="durationHours"
                   type="number"
@@ -686,6 +1007,7 @@ export default function SeverityPage() {
               <Field
                 label="Ausfallzeit krit./wichtiger Dienste (Stunden)"
                 htmlFor="downtimeHours"
+                uncertain={isUncertain("downtimeHours")}
               >
                 <Input
                   id="downtimeHours"
@@ -715,6 +1037,7 @@ export default function SeverityPage() {
               <Field
                 label="Mitgliedstaaten mit Auswirkungen"
                 htmlFor="memberStatesAffected"
+                uncertain={isUncertain("memberStatesAffected")}
               >
                 <Input
                   id="memberStatesAffected"
@@ -745,7 +1068,10 @@ export default function SeverityPage() {
               )}
             {Number(form.memberStatesAffected) >= 2 && (
               <div className="space-y-2">
-                <Label>Erheblich betroffene Bereiche</Label>
+                <Label>
+                  Erheblich betroffene Bereiche
+                  {isUncertain("geoImpactAreas") && <UncertainMark />}
+                </Label>
                 <div className="flex flex-wrap gap-2">
                   {GEO_IMPACT_AREAS.map((a) => (
                     <TogglePill
@@ -766,6 +1092,14 @@ export default function SeverityPage() {
       case "dataLoss":
         return (
           <>
+            {isUncertain("dataLossDimensions") && (
+              <p className="text-xs">
+                <span className="text-muted-foreground">
+                  Betroffene Schutzziele
+                </span>
+                <UncertainMark />
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {DATA_LOSS_DIMENSIONS.map((d) => (
                 <TogglePill
@@ -784,6 +1118,7 @@ export default function SeverityPage() {
                   Hat oder wird die Beeinträchtigung nachteilige Auswirkungen
                   auf die Geschäftsziele oder die Erfüllung regulatorischer
                   Anforderungen haben?
+                  {isUncertain("dataLossAdverseImpact") && <UncertainMark />}
                 </p>
                 <div className="flex gap-2 sm:max-w-sm">
                   <ChoiceButton
@@ -806,17 +1141,27 @@ export default function SeverityPage() {
 
       case "reputation":
         return (
-          <div className="flex flex-wrap gap-2">
-            {REPUTATION_CONDITIONS.map((c) => (
-              <TogglePill
-                key={c.id}
-                active={form.reputationalImpactConditions.includes(c.id)}
-                title={c.hint}
-                onClick={() => toggleReputation(c.id)}
-              >
-                {c.label}
-              </TogglePill>
-            ))}
+          <div className="space-y-2">
+            {isUncertain("reputationalImpactConditions") && (
+              <p className="text-xs">
+                <span className="text-muted-foreground">
+                  Erfüllte Bedingungen
+                </span>
+                <UncertainMark />
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {REPUTATION_CONDITIONS.map((c) => (
+                <TogglePill
+                  key={c.id}
+                  active={form.reputationalImpactConditions.includes(c.id)}
+                  title={c.hint}
+                  onClick={() => toggleReputation(c.id)}
+                >
+                  {c.label}
+                </TogglePill>
+              ))}
+            </div>
           </div>
         );
 
@@ -826,6 +1171,7 @@ export default function SeverityPage() {
             <Field
               label="Kosten und Verluste (EUR)"
               htmlFor="economicImpactEur"
+              uncertain={isUncertain("economicImpactEur")}
             >
               <Input
                 id="economicImpactEur"
@@ -852,6 +1198,14 @@ export default function SeverityPage() {
   const descriptionMissing =
     form.description.trim().length < MIN_DESCRIPTION_LENGTH;
 
+  const uncertain = extraction?.uncertain ?? [];
+  const isUncertain = (field: SeverityExtractionField) =>
+    uncertain.includes(field);
+  const stepUncertain = (id: StepId) =>
+    STEP_FIELDS[id].some((field) => uncertain.includes(field));
+  const gatesUncertain = GATE_FIELDS.some((field) => uncertain.includes(field));
+  const gatesComplete = questionsComplete(gateAnswers, dataLossAnswer);
+
   const gateSummary = [
     ...GATE_QUESTIONS.map(
       (q) => `${GATE_SUMMARY_LABEL[q.key]}: ${form[q.key] ? "Ja" : "Nein"}`,
@@ -870,10 +1224,122 @@ export default function SeverityPage() {
       <PageHeader
         step="Schritt 02"
         title="Schweregrad bestimmen (DORA)"
-        desc="Beantworten Sie zunächst die Vorfragen zur Kritikalität der betroffenen Dienste. Anschließend arbeiten Sie die Klassifizierungskriterien einzeln ab – jedes lässt sich ausfüllen oder als nicht zutreffend abhaken."
+        desc={
+          stage === "start"
+            ? "Die Angaben zu den Klassifizierungskriterien können Sie selbst erfassen oder aus einer Beschreibung übernehmen lassen. Über die Einstufung entscheidet in beiden Fällen dieselbe Regelbasis."
+            : "Beantworten Sie zunächst die Vorfragen zur Kritikalität der betroffenen Dienste. Anschließend arbeiten Sie die Klassifizierungskriterien einzeln ab – jedes lässt sich ausfüllen oder als nicht zutreffend abhaken."
+        }
       />
 
-      {stage === "questions" ? (
+      {stage === "start" ? (
+        /* Selbst erfassen oder aus einer Beschreibung übernehmen */
+        <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+          <StartCard
+            icon={ClipboardList}
+            title="Angaben selbst erfassen"
+            desc="Die Vorfragen zur Kritikalität, danach die Kriterien einzeln – jedes ausfüllbar oder als nicht zutreffend abzuhaken."
+            action="Erfassung beginnen"
+            onClick={startManually}
+          />
+          <StartCard
+            icon={Wand2}
+            title="Aus einer Beschreibung übernehmen"
+            desc={
+              aiReady
+                ? "Sie beantworten fünf Fragen, das Modell trägt die Angaben daraus zusammen. Sie prüfen und ändern sie anschließend; die Einstufung selbst bleibt regelbasiert."
+                : "Dafür wird ein Claude-API-Schlüssel benötigt."
+            }
+            action="Fragen beantworten"
+            disabled={!aiReady}
+            hint={
+              aiReady ? undefined : (
+                <Link
+                  href="/einstellungen"
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  Schlüssel hinterlegen
+                </Link>
+              )
+            }
+            onClick={() => {
+              // Die Triage-Beschreibung ist derselbe Sachverhalt – als
+              // Ausgangstext ersparen wir dem Anwender das Abtippen.
+              if (answers.incident.trim() === "" && triageDescription) {
+                setAnswers((a) => ({ ...a, incident: triageDescription }));
+              }
+              patch((d) => ({ ...d, stage: "extract" }));
+            }}
+          />
+        </div>
+      ) : stage === "extract" ? (
+        /* Die Fragen, aus deren Antworten übernommen wird */
+        <Card className="mx-auto w-full max-w-3xl border-border/60 bg-card/70 backdrop-blur">
+          <CardContent className="p-6 sm:p-8">
+            {extracting ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                <Loader2 className="size-6 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Die Angaben werden zusammengetragen …
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={onExtract} className="space-y-5">
+                <div className="space-y-5">
+                  {EXTRACTION_QUESTIONS.map((q) => (
+                    <div key={q.key} className="space-y-2">
+                      <Label htmlFor={q.key}>
+                        {q.label}
+                        {!q.required && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            optional
+                          </span>
+                        )}
+                      </Label>
+                      <Textarea
+                        id={q.key}
+                        required={q.required}
+                        rows={q.rows}
+                        maxLength={q.max}
+                        placeholder={q.placeholder}
+                        value={answers[q.key]}
+                        onChange={(e) =>
+                          setAnswers((a) => ({ ...a, [q.key]: e.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Nur die erste Frage ist erforderlich. Was Sie offen lassen,
+                    bleibt auch im Formular offen – das Modell trägt nur
+                    zusammen, was dasteht, und markiert, wo es unsicher ist. Die
+                    Einstufung erfolgt durch die Regelbasis.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => patch((d) => ({ ...d, stage: "start" }))}
+                  >
+                    <ArrowLeft className="size-4" />
+                    Zurück
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={
+                      answers.incident.trim().length < MIN_EXTRACTION_LENGTH
+                    }
+                  >
+                    <Wand2 className="size-4" />
+                    Angaben übernehmen
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      ) : stage === "questions" ? (
         <Card className="mx-auto w-full max-w-3xl border-border/60 bg-card/70 backdrop-blur">
           <CardContent className="p-6 sm:p-8">
             {loading ? (
@@ -885,6 +1351,20 @@ export default function SeverityPage() {
               </div>
             ) : (
               <div className="space-y-6">
+                {extraction && (
+                  <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+                    <Wand2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <p className="text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        Aus Ihren Antworten übernommen.{" "}
+                      </span>
+                      Diese Vorfragen entscheiden, ob überhaupt ein
+                      schwerwiegender Vorfall vorliegen kann – bitte bestätigen
+                      oder ändern Sie jede Antwort.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
@@ -900,6 +1380,7 @@ export default function SeverityPage() {
                       <p className="text-sm">
                         <span className="font-medium">{q.letter})</span>{" "}
                         {q.question}
+                        {isUncertain(q.key) && <UncertainMark />}
                       </p>
                       <div className="flex gap-2">
                         <ChoiceButton
@@ -924,6 +1405,9 @@ export default function SeverityPage() {
                     <p className="text-sm font-medium">
                       2. Kann der böswillige unbefugte Zugriff zu Datenverlusten
                       führen?
+                      {isUncertain("maliciousAccessDataLossPossible") && (
+                        <UncertainMark />
+                      )}
                     </p>
                     <div className="flex gap-2">
                       <ChoiceButton
@@ -946,6 +1430,24 @@ export default function SeverityPage() {
                     </p>
                   </div>
                 )}
+
+                {/*
+                  Beantwortet der Anwender die letzte Vorfrage, geht es von
+                  selbst weiter. Stehen die Antworten schon – übernommen oder
+                  beim Zurückspringen –, braucht es diesen Weg.
+                */}
+                {gatesComplete && (
+                  <div className="flex justify-end border-t border-border/60 pt-6">
+                    <Button
+                      type="button"
+                      size="lg"
+                      onClick={() => patch((d) => ({ ...d, stage: "form" }))}
+                    >
+                      Weiter zu den Kriterien
+                      <ArrowRight className="size-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -953,6 +1455,14 @@ export default function SeverityPage() {
       ) : (
         /* Kriterien einzeln abarbeiten */
         <div className="mx-auto w-full max-w-4xl space-y-5">
+          {extraction && (
+            <ExtractionNotice
+              extraction={extraction}
+              uncertainCount={uncertain.length}
+              openSteps={STEPS.length - addressed}
+            />
+          )}
+
           {ruledOutNonMajor && (
             <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-success/5 p-4">
               <span
@@ -1003,6 +1513,7 @@ export default function SeverityPage() {
                 marker={<Check className="size-5" />}
                 status="done"
                 title="Vorfragen: Kritikalität der Dienste"
+                flag={gatesUncertain ? "zu prüfen" : undefined}
                 summary={gateSummary}
                 trailing={
                   <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -1033,6 +1544,7 @@ export default function SeverityPage() {
                     status={status}
                     title={step.title}
                     open={open}
+                    flag={stepUncertain(step.id) ? "zu prüfen" : undefined}
                     summary={
                       status === "skipped"
                         ? "Nicht zutreffend"
@@ -1183,6 +1695,126 @@ function ProfileReference({ profile }: { profile: CompanyProfile }) {
   );
 }
 
+/**
+ * Markierung an einem Feld, dessen Wert das Modell nur erschlossen hat. Sie
+ * verschwindet, sobald jemand das Feld selbst setzt.
+ */
+function UncertainMark() {
+  return (
+    <span className="ml-2 inline-flex items-center rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 align-middle text-[10px] font-medium text-warning">
+      zu prüfen
+    </span>
+  );
+}
+
+/** Was übernommen wurde, was fehlt und was noch zu prüfen ist. */
+function ExtractionNotice({
+  extraction,
+  uncertainCount,
+  openSteps,
+}: {
+  extraction: ExtractionState;
+  uncertainCount: number;
+  /** Kriterien, zu denen die Antworten nichts hergaben. */
+  openSteps: number;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+      <div className="flex items-start gap-3 text-sm">
+        <Wand2 className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="space-y-1">
+          <p className="font-medium">
+            Angaben aus Ihren Antworten übernommen
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              {claudeModelLabel(extraction.model)}
+            </span>
+          </p>
+          <p className="text-muted-foreground">
+            {uncertainCount === 0
+              ? "Nichts davon ist erschlossen. Prüfen Sie die Angaben dennoch, bevor Sie einstufen – die Einstufung selbst folgt der hinterlegten Regelbasis."
+              : `${uncertainCount} ${uncertainCount === 1 ? "Angabe ist" : "Angaben sind"} nur erschlossen und mit „zu prüfen“ gekennzeichnet. Die Einstufung selbst folgt der hinterlegten Regelbasis.`}
+          </p>
+          {openSteps > 0 && (
+            <p className="text-muted-foreground">
+              {openSteps === 1
+                ? "Zu einem Kriterium"
+                : `Zu ${openSteps} Kriterien`}{" "}
+              gaben die Antworten nichts her;{" "}
+              {openSteps === 1 ? "es ist" : "sie sind"} offen geblieben. Nicht
+              bearbeitete Kriterien gehen als „Schwelle nicht erreicht“ in die
+              Einstufung ein.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {extraction.notes.trim() !== "" && (
+        <p className="rounded-lg bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+          {extraction.notes}
+        </p>
+      )}
+
+      {extraction.manipulationDetected && (
+        <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
+          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">
+              Hinweis auf Manipulation:{" "}
+            </span>
+            Ihre Angaben enthalten Anweisungen an ein KI-System. Sie wurden
+            nicht befolgt; prüfen Sie die Herkunft des Textes.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Eine der beiden Arten, die Angaben zu erfassen. */
+function StartCard({
+  icon: Icon,
+  title,
+  desc,
+  action,
+  disabled = false,
+  hint,
+  onClick,
+}: {
+  icon: typeof ClipboardList;
+  title: string;
+  desc: string;
+  action: string;
+  disabled?: boolean;
+  hint?: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Card className="border-border/60 bg-card/70 backdrop-blur">
+      <CardContent className="flex h-full flex-col gap-4 p-6">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="size-5" />
+        </span>
+        <div className="flex-1 space-y-1">
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+          <p className="text-sm text-muted-foreground">{desc}</p>
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        </div>
+        <Button
+          type="button"
+          size="lg"
+          variant={disabled ? "outline" : "default"}
+          disabled={disabled}
+          onClick={onClick}
+          className="w-full"
+        >
+          {action}
+          <ArrowRight className="size-4" />
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ChoiceButton({
   selected,
   onClick,
@@ -1211,15 +1843,21 @@ function ChoiceButton({
 function Field({
   label,
   htmlFor,
+  uncertain = false,
   children,
 }: {
   label: string;
   htmlFor: string;
+  /** Der Wert stammt aus einer Beschreibung und ist nur erschlossen. */
+  uncertain?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor}>
+        {label}
+        {uncertain && <UncertainMark />}
+      </Label>
       {children}
     </div>
   );

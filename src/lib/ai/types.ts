@@ -3,6 +3,8 @@ import type {
   TriageResult,
   SeverityInput,
   SeverityResult,
+  SeverityExtraction,
+  SeverityExtractionInput,
 } from "@/lib/schemas";
 
 /**
@@ -20,4 +22,13 @@ export interface TriageService {
 
 export interface SeverityService {
   assess(input: SeverityInput): Promise<SeverityResult>;
+}
+
+/**
+ * Trägt die Angaben zu den Kriterien aus einer Beschreibung zusammen. Die
+ * Bewertung bleibt dem SeverityService – und damit der Regelbasis –
+ * vorbehalten.
+ */
+export interface SeverityExtractionService {
+  extract(input: SeverityExtractionInput): Promise<SeverityExtraction>;
 }

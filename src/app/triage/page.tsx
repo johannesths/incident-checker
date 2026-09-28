@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Info, Loader2, Sparkles } from "lucide-react";
@@ -12,11 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "sonner";
 import { TRIAGE_SCENARIOS } from "@/lib/demo-data";
-import {
-  DEFAULT_CLAUDE_MODEL,
-  claudeModelLabel,
-  type AiAvailability,
-} from "@/lib/ai/models";
+import { claudeModelLabel } from "@/lib/ai/models";
+import { useAiAvailability } from "@/lib/ai/use-availability";
 import {
   activeAnthropicApiKey,
   aiRequestHeaders,
@@ -47,7 +44,7 @@ export default function TriagePage() {
   // bewertet der Server regelbasiert – es sei denn, er hat selbst einen.
   const credentials = useCredentials();
   const apiKey = credentials ? activeAnthropicApiKey(credentials) : null;
-  const availability = useAiAvailability();
+  const availability = useAiAvailability("/api/triage");
 
   function setForm(next: TriageInput) {
     saveSession(STORAGE_KEYS.triageDraft, next);
@@ -166,34 +163,6 @@ export default function TriagePage() {
       </Card>
     </div>
   );
-}
-
-const NO_SERVER_KEY: AiAvailability = {
-  serverKey: false,
-  defaultModel: DEFAULT_CLAUDE_MODEL,
-};
-
-/**
- * Fragt den Server, ob er ohne Schlüssel aus dem Browser bewerten kann. Erst
- * mit der Antwort stimmt der Hinweis in jedem Fall; bis dahin fehlt er.
- */
-function useAiAvailability(): AiAvailability | null {
-  const [availability, setAvailability] = useState<AiAvailability | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/triage")
-      .then((res) => (res.ok ? (res.json() as Promise<AiAvailability>) : null))
-      .then((data) => {
-        if (!cancelled) setAvailability(data ?? NO_SERVER_KEY);
-      })
-      .catch(() => {
-        if (!cancelled) setAvailability(NO_SERVER_KEY);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return availability;
 }
 
 /**

@@ -64,6 +64,24 @@ const triageOutputSchema = z.object({
 type TriageOutput = z.infer<typeof triageOutputSchema>;
 
 /**
+ * Die strukturierte Ausgabe der API erzwingt Typ und Vollständigkeit der
+ * Felder, nicht aber die zulässigen Werte einer Auswahl: Die Aufzählung
+ * erreicht das Modell nur als Beschreibung. Groß- und Kleinschreibung sowie
+ * Leerzeichen werden deshalb vor der Prüfung vereinheitlicht, damit ein
+ * "Incident" die Bewertung nicht scheitern lässt.
+ */
+function normalizeChoices(json: unknown): unknown {
+  if (!json || typeof json !== "object") return json;
+  const raw = json as Record<string, unknown>;
+  const normalized = { ...raw };
+  for (const key of ["verdict", "confidence"]) {
+    const value = raw[key];
+    if (typeof value === "string") normalized[key] = value.trim().toLowerCase();
+  }
+  return normalized;
+}
+
+/**
  * Die Systemanweisung trägt den Maßstab und die Regeln; die Meldung selbst
  * steht getrennt davon in der Nutzernachricht. Sie ist für alle Anfragen
  * gleich und enthält nichts Veränderliches.
@@ -209,7 +227,7 @@ export class ClaudeTriageService implements TriageService {
     } catch {
       throw new UnusableResponseError("die Antwort ist kein gültiges JSON.");
     }
-    const output = triageOutputSchema.safeParse(json);
+    const output = triageOutputSchema.safeParse(normalizeChoices(json));
     if (!output.success) {
       throw new UnusableResponseError(
         "die Antwort entspricht nicht dem vereinbarten Schema.",

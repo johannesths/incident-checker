@@ -22,6 +22,7 @@ export function StepRow({
   status,
   title,
   article,
+  flag,
   summary,
   open = false,
   isLast = false,
@@ -33,6 +34,8 @@ export function StepRow({
   status: StepStatus;
   title: string;
   article?: string;
+  /** Hinweis, der die Stufe hervorhebt – etwa eine noch zu prüfende Angabe. */
+  flag?: string;
   summary: string;
   open?: boolean;
   isLast?: boolean;
@@ -79,6 +82,11 @@ export function StepRow({
               {article && (
                 <span className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {article}
+                </span>
+              )}
+              {flag && (
+                <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+                  {flag}
                 </span>
               )}
             </span>

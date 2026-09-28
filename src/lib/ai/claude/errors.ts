@@ -80,16 +80,20 @@ export function describeAiError(error: unknown): AiFailure | null {
     };
   }
   if (error instanceof Anthropic.APIError) {
-    if (error.status === 402) {
+    // Die Art des Fehlers steht in der Antwort und ist verlässlicher als ihr
+    // Status: Ein erschöpftes Guthaben ist je nach Fall eine 400 oder eine
+    // 402, meldet aber stets "billing_error".
+    if (error.type === "billing_error" || error.status === 402) {
       return {
         status: 502,
         code: "upstream_credit",
-        message: "Das Guthaben des Claude-API-Kontos ist erschöpft.",
+        message:
+          "Das Guthaben des Claude-API-Kontos ist erschöpft. Bitte laden Sie es auf oder hinterlegen Sie einen anderen Schlüssel.",
       };
     }
     // 529 ist die Überlastmeldung der Claude-API; das SDK führt sie als
     // Serverfehler.
-    if (error.status === 529) return BUSY;
+    if (error.type === "overloaded_error" || error.status === 529) return BUSY;
     return {
       status: 502,
       code: "upstream_error",
