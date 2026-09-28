@@ -8,19 +8,31 @@ import {
   ArrowRight,
   CheckCircle2,
   HelpCircle,
+  MessageCircleQuestion,
   RotateCcw,
+  ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
+import { claudeModelLabel } from "@/lib/ai/models";
 import {
   STORAGE_KEYS,
   clearSession,
   useSessionValue,
 } from "@/lib/session-store";
 import type { TriageResult } from "@/lib/schemas";
+
+/** Herkunft der Einschätzung in einem Wort – Ergebnisse älterer Fassungen tragen keine. */
+function sourceLabel(result: TriageResult): string | null {
+  if (result.source === "claude") {
+    return result.model ? claudeModelLabel(result.model) : "Claude";
+  }
+  if (result.source === "rules") return "regelbasiert";
+  return null;
+}
 
 function toneFor(result: TriageResult) {
   if (result.isIncident) {
@@ -77,6 +89,8 @@ export default function TriageResultPage() {
   }
 
   const tone = toneFor(result);
+  const source = sourceLabel(result);
+  const openQuestions = result.openQuestions ?? [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -98,8 +112,15 @@ export default function TriageResultPage() {
             >
               <tone.icon className="size-6" />
             </span>
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">{tone.label}</h2>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-semibold">{tone.label}</h2>
+                {source && (
+                  <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    Einschätzung: {source}
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {result.recommendation}
               </p>
@@ -110,6 +131,39 @@ export default function TriageResultPage() {
             <span className="font-medium text-foreground">Begründung: </span>
             {result.reasoning}
           </p>
+
+          {/*
+            Anweisungen an ein KI-System im Meldungstext sind bei Texten Dritter
+            selbst ein Befund – die Oberfläche zeigt ihn, statt ihn im Fließtext
+            der Begründung zu lassen.
+          */}
+          {result.manipulationDetected && (
+            <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Hinweis auf Manipulation:{" "}
+                </span>
+                Der Meldungstext enthält Anweisungen an ein KI-System oder
+                Versuche, das Ergebnis vorzugeben. Sie wurden nicht befolgt;
+                prüfen Sie die Herkunft des Textes.
+              </p>
+            </div>
+          )}
+
+          {openQuestions.length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border/60 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <MessageCircleQuestion className="size-4 text-muted-foreground" />
+                Rückfragen an den Melder
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                {openQuestions.map((question, index) => (
+                  <li key={index}>{question}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {result.isIncident && (
             <Link

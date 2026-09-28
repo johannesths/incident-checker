@@ -24,6 +24,20 @@ System, Melder und Symptome. Das Ergebnis ist eine Einschätzung mit
 Empfehlung, Begründung und Konfidenz: Vorfall, kein Vorfall (ServiceDesk)
 oder unklar.
 
+- **Bewertung durch Claude**, sobald ein API-Schlüssel hinterlegt ist
+  (Einstellungen; Modell wählbar, Standard Sonnet). Das Modell bekommt den
+  Maßstab des Art. 3 Nr. 8 DORA als Anweisung und die Meldung als Daten und
+  antwortet in einem festen Schema – ein Urteil aus drei Werten, eine
+  dreistufige Sicherheit, Begründung, Empfehlung. Bei unklarer Einordnung
+  nennt es Rückfragen an den Melder.
+- **Ohne Schlüssel** bleibt das regelbasierte Verfahren nach Stichworten.
+  Die Ergebnisseite nennt in beiden Fällen die Herkunft der Einschätzung.
+- **Gegen eingeschleuste Anweisungen:** Der Aufruf hat weder Werkzeuge noch
+  Verlauf; seine gesamte Ausgabe ist das Schema. Anweisungen im
+  Meldungstext – etwa in einer zitierten Phishing-Mail – befolgt das Modell
+  nicht, sondern meldet sie; die Ergebnisseite zeigt den Hinweis. Die
+  Entscheidung bleibt beim Menschen; nichts wird automatisch weitergeleitet.
+
 ### Schritt 02 – Schweregrad
 
 Einstufung eines bestätigten Vorfalls als schwerwiegend nach den
@@ -162,16 +176,20 @@ zeigt keine Fundstellen.
 | Framework | [Next.js 16](https://nextjs.org) (App Router, Turbopack), React 19, TypeScript 5 |
 | Oberfläche | Tailwind CSS 4, [shadcn/ui](https://ui.shadcn.com) auf [Base UI](https://base-ui.com), Lucide-Icons, Sonner für Hinweise |
 | Validierung | [Zod 4](https://zod.dev) – ein Schema je Meldung, von Formular und API gemeinsam genutzt |
-| Bewertung | Austauschbare Dienste hinter `src/lib/ai` (Triage, Schweregrad) und `src/lib/bafin` (Meldung); derzeit deterministische Regelwerke bzw. eine Simulation der Übermittlung |
+| Bewertung | Austauschbare Dienste hinter `src/lib/ai` (Triage, Schweregrad) und `src/lib/bafin` (Meldung): Triage durch Claude ([`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript), strukturierte Ausgabe, adaptives Denken, Aufwand „medium“), sonst deterministische Regelwerke bzw. eine Simulation der Übermittlung |
 | Zustand | `useSyncExternalStore` über `localStorage` und `sessionStorage`; kein globaler Store |
 | PDF | [`@react-pdf/renderer`](https://react-pdf.org), im Browser und erst beim Klick geladen |
 | Auslieferung | Docker, Next.js-Standalone-Ausgabe, Portainer-Stack hinter Traefik |
 
-Die Triage- und Schweregradbewertung laufen heute als regelbasierte
-Mock-Dienste. Die Schnittstellen in `src/lib/ai/types.ts` sind so
-geschnitten, dass eine KI-gestützte Bewertung eingehängt werden kann, ohne
-Oberfläche oder API zu ändern – sie bewertet dann anhand der hinterlegten
-Kriterien, nicht mit eigenen Schwellenwerten. Für die Meldung gilt dasselbe:
+Die Triage bewertet Claude, sobald ein Schlüssel vorliegt – aus dem Browser
+des Nutzers (Kopfzeile je Anfrage, siehe *Zugangsschlüssel*) oder aus
+`ANTHROPIC_API_KEY` in der Umgebung des Servers; `ANTHROPIC_MODEL` setzt das
+Standardmodell. Der Server baut den Client je Anfrage und behält den
+Schlüssel nicht. Die Schweregradbewertung läuft noch als regelbasierter
+Mock-Dienst; die Schnittstelle in `src/lib/ai/types.ts` ist so geschnitten,
+dass die KI-gestützte Bewertung eingehängt wird, ohne Oberfläche oder API zu
+ändern – sie bewertet dann anhand der hinterlegten Kriterien, nicht mit
+eigenen Schwellenwerten. Für die Meldung gilt dasselbe:
 `src/lib/bafin/index.ts` ist die Stelle, an der ein echter Konnektor die
 Simulation ersetzt.
 
@@ -196,9 +214,14 @@ src/
     company/              Unternehmensprofil und dessen Speicher
     credentials/          Zugangsschlüssel (Claude-API, Managed Service) und deren Speicher
     pdf/                  PDF-Zusammenfassungen von Einstufung und Meldung
-    ai/                   Triage- und Schweregraddienst (Mock)
+    ai/
+      claude/             Triage durch Claude: Client, Systemanweisung, Fehler
+      models.ts           Wählbare Modelle und Kopfzeilen
+      request.ts          Schlüssel und Modell einer Anfrage
+      mock.ts             Regelbasierte Triage und Schweregradbestimmung
     bafin/                Meldedienst (Simulation)
 scripts/
+  test-triage.mjs         Prüft die Triage gegen Fälle mit bekannter Einordnung
   test-severity.mjs       Prüft die Klassifizierung gegen die Schwellen
   test-report.mjs         Prüft die Meldung gegen 2025/301
 ```
@@ -210,13 +233,18 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-Zwei Prüfskripte sprechen die laufende Anwendung über ihre API an und decken
+Drei Prüfskripte sprechen die laufende Anwendung über ihre API an und decken
 damit Schema, Route und Bewertungslogik gemeinsam ab:
 
 ```bash
+npm run test:triage     # 14 Fälle zur Einordnung, darunter eingeschleuste Anweisungen
 npm run test:severity   # 21 Fälle zu Schwellen und Gesamteinstufung
 npm run test:report     # 43 Fälle zu Inhalt, Fristen und Widersprüchen
 ```
+
+`test:triage` prüft ohne Schlüssel das regelbasierte Verfahren; mit
+`ANTHROPIC_API_KEY=sk-ant-…` (und wahlweise `ANTHROPIC_MODEL`) geht der Lauf
+durch Claude und kostet je Fall einen Bruchteil eines Cents bis wenige Cent.
 
 Beide nehmen `BASE_URL`, um eine andere Instanz zu prüfen – etwa den
 Container.

@@ -57,12 +57,15 @@ import {
   saveCredentials,
   useCredentials,
 } from "@/lib/credentials/store";
+import { CLAUDE_MODELS, type ClaudeModel } from "@/lib/ai/models";
 
 /** Die Kategorien des Art. 2 Abs. 1 DORA als Auswahlliste. */
 const ENTITY_TYPE_ITEMS = ENTITY_TYPES.map((t) => ({
   value: t.id,
   label: t.label,
 }));
+
+const MODEL_ITEMS = CLAUDE_MODELS.map((m) => ({ value: m.id, label: m.label }));
 
 const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
@@ -712,6 +715,31 @@ function CredentialsForm({ credentials }: { credentials: Credentials }) {
               }
             />
           </Field>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="anthropicModel">Modell</Label>
+          <Select
+            items={MODEL_ITEMS}
+            value={form.anthropicModel}
+            onValueChange={(value) =>
+              update("anthropicModel", value as ClaudeModel)
+            }
+          >
+            <SelectTrigger id="anthropicModel" className="w-full sm:max-w-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLAUDE_MODELS.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {CLAUDE_MODELS.find((m) => m.id === form.anthropicModel)?.hint}
+          </p>
         </div>
 
         <Field

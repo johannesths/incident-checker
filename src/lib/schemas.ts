@@ -62,15 +62,34 @@ const classificationIds = ["major", "non_major", "indeterminate"] as const;
  * Funktion 1: Triage – Handelt es sich um einen IKT-bezogenen Vorfall?
  * ------------------------------------------------------------------------- */
 
+/*
+ * Die Obergrenzen begrenzen, was an das KI-Modell geht: Kosten je Anfrage und
+ * der Raum für eingebettete Fremdtexte. Eine Meldung, die sie überschreitet,
+ * ist ohnehin kein Triage-Text mehr, sondern ein Anhang.
+ */
 export const triageInputSchema = z.object({
   /** Freitextbeschreibung des möglichen Vorfalls. */
-  description: z.string().min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen)."),
+  description: z
+    .string()
+    .min(10, "Bitte beschreiben Sie den Vorfall (mind. 10 Zeichen).")
+    .max(10_000, "Die Beschreibung ist zu lang (max. 10.000 Zeichen)."),
   /** Betroffenes System / betroffener Dienst. */
-  affectedSystem: z.string().min(1, "Bitte geben Sie das betroffene System an."),
+  affectedSystem: z
+    .string()
+    .min(1, "Bitte geben Sie das betroffene System an.")
+    .max(500, "Die Angabe ist zu lang (max. 500 Zeichen)."),
   /** Wer hat den Vorfall gemeldet? (optional, reine Dokumentation) */
-  reportedBy: z.string().optional().default(""),
+  reportedBy: z
+    .string()
+    .max(500, "Die Angabe ist zu lang (max. 500 Zeichen).")
+    .optional()
+    .default(""),
   /** Beobachtete Symptome / Auswirkungen. */
-  symptoms: z.string().optional().default(""),
+  symptoms: z
+    .string()
+    .max(5_000, "Die Angabe ist zu lang (max. 5.000 Zeichen).")
+    .optional()
+    .default(""),
 });
 
 export type TriageInput = z.infer<typeof triageInputSchema>;
@@ -82,8 +101,20 @@ export const triageResultSchema = z.object({
   recommendation: z.string(),
   /** Begründung der Einschätzung. */
   reasoning: z.string(),
-  /** Konfidenz der Einschätzung (0–1). */
+  /** Konfidenz der Einschätzung (0–1); unter 0,5 gilt die Einordnung als unklar. */
   confidence: z.number().min(0).max(1),
+  /** Rückfragen an den Melder, deren Antwort die Einordnung ermöglicht – bei unklarem Ergebnis. */
+  openQuestions: z.array(z.string()).optional().default([]),
+  /**
+   * Die Angaben enthielten Anweisungen an ein KI-System oder Versuche, das
+   * Ergebnis vorzugeben – bei Texten Dritter (E-Mails, Erpressernachrichten)
+   * selbst ein Befund.
+   */
+  manipulationDetected: z.boolean().optional().default(false),
+  /** Herkunft der Einschätzung: das KI-Modell oder das regelbasierte Platzhalter-Verfahren. */
+  source: z.enum(["claude", "rules"]).optional(),
+  /** Modell, das die Einschätzung geliefert hat. */
+  model: z.string().optional(),
 });
 
 export type TriageResult = z.infer<typeof triageResultSchema>;

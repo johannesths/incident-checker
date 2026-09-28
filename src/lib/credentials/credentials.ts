@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  API_KEY_HEADER,
+  CLAUDE_MODELS,
+  DEFAULT_CLAUDE_MODEL,
+  MODEL_HEADER,
+  type ClaudeModel,
+} from "@/lib/ai/models";
 
 /**
  * Zugangsschlüssel, die die Anwendung im Auftrag des Nutzers verwendet: der
@@ -23,11 +30,22 @@ import { z } from "zod";
  * Übergabe der Schlüssel werden sich daher noch ändern – Aufrufer sollten nur
  * über activeAnthropicApiKey() und useCredentials() darauf zugreifen.
  */
+const modelIds = CLAUDE_MODELS.map((m) => m.id) as [
+  ClaudeModel,
+  ...ClaudeModel[],
+];
+
 export const credentialsSchema = z.object({
   /** Schlüssel für die Claude-API; Anthropic-Schlüssel beginnen mit "sk-ant-". */
   anthropicApiKey: z.string(),
   /** Letzter Gültigkeitstag des API-Schlüssels als ISO-Datum (JJJJ-MM-TT). */
   anthropicApiKeyValidUntil: z.string(),
+  /**
+   * Modell, mit dem die Bewertung läuft – kein Geheimnis, aber dieselbe
+   * Einstellung. Die Liste kann sich ändern; eine nicht mehr angebotene Wahl
+   * fällt auf den Standard zurück, ohne die Schlüssel zu verwerfen.
+   */
+  anthropicModel: z.enum(modelIds).catch(DEFAULT_CLAUDE_MODEL),
   /** Schlüssel des Unternehmens für den Managed Service. */
   managedServiceKey: z.string(),
 });
@@ -37,6 +55,7 @@ export type Credentials = z.infer<typeof credentialsSchema>;
 export const EMPTY_CREDENTIALS: Credentials = {
   anthropicApiKey: "",
   anthropicApiKeyValidUntil: "",
+  anthropicModel: DEFAULT_CLAUDE_MODEL,
   managedServiceKey: "",
 };
 
@@ -178,8 +197,26 @@ export function trimCredentials(form: Credentials): Credentials {
     anthropicApiKey,
     anthropicApiKeyValidUntil:
       anthropicApiKey === "" ? "" : form.anthropicApiKeyValidUntil.trim(),
+    anthropicModel: form.anthropicModel,
     managedServiceKey: form.managedServiceKey.trim(),
   };
+}
+
+/**
+ * Kopfzeilen für Anfragen an die Bewertungs-API: die Modellwahl immer, der
+ * Schlüssel nur, solange er gültig ist – ein abgelaufener Schlüssel verlässt
+ * den Browser nicht.
+ */
+export function aiRequestHeaders(
+  credentials: Credentials,
+  now: Date = new Date(),
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    [MODEL_HEADER]: credentials.anthropicModel,
+  };
+  const apiKey = activeAnthropicApiKey(credentials, now);
+  if (apiKey) headers[API_KEY_HEADER] = apiKey;
+  return headers;
 }
 
 export function hasCredentials(credentials: Credentials): boolean {

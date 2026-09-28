@@ -8,9 +8,14 @@ services:
     environment:
       NODE_ENV: production
       # Die Anwendung hält keine Daten auf dem Server – Unternehmensprofil und
-      # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume und
-      # keine weiteren Umgebungsvariablen.
+      # Vorfallentwürfe liegen im Browser. Es gibt deshalb kein Volume.
       TZ: ${TZ:-Europe/Berlin}
+      # Gemeinsamer Unternehmensschlüssel für die Claude-API (optional). Ist er
+      # gesetzt, bewertet die Triage auch ohne Schlüssel im Browser durch
+      # Claude; ein Schlüssel aus dem Browser hat Vorrang. ANTHROPIC_MODEL
+      # setzt das Standardmodell (claude-sonnet-5 oder claude-opus-5).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
     networks:
       - traefik
     labels:

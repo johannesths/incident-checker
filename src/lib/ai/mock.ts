@@ -81,6 +81,9 @@ export class MockTriageService implements TriageService {
         reasoning:
           "Die Beschreibung deutet auf ein Standard-Supportanliegen hin (z. B. Zugang/Hardware).",
         confidence: 0.6,
+        openQuestions: [],
+        manipulationDetected: false,
+        source: "rules",
       };
     }
 
@@ -92,6 +95,9 @@ export class MockTriageService implements TriageService {
         reasoning:
           "Die Beschreibung enthält Hinweise auf eine Störung oder einen sicherheitsrelevanten Vorfall.",
         confidence: 0.65,
+        openQuestions: [],
+        manipulationDetected: false,
+        source: "rules",
       };
     }
 
@@ -101,6 +107,9 @@ export class MockTriageService implements TriageService {
       reasoning:
         "Aus der Beschreibung lässt sich keine eindeutige Einordnung ableiten.",
       confidence: 0.4,
+      openQuestions: [],
+      manipulationDetected: false,
+      source: "rules",
     };
   }
 }
