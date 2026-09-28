@@ -40,4 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# von "next dev" erzeugte Hinweise für KI-Werkzeuge
+/AGENTS.md
+/CLAUDE.md
+
 /.claude
